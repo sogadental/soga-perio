@@ -240,7 +240,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.6・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 1.7・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -624,7 +624,25 @@ function homoToNum(text){
   }
   return out;
 }
+// ひらがな・カタカナの聞き間違い（例：ジャンニーニ → さん に に）を音の近さで数字に直す
+var FUZ=[['きゅう',9],['きゅ',9],['きう',9],['しゃん',3],['じゃん',3],['いっち',1],['はっち',8],['ろっく',6],['さん',3],['ざん',3],['たん',3],['さむ',3],['いち',1],['いっ',1],['にい',2],['よん',4],['よむ',4],['よお',4],['しい',4],['ごお',5],['ごう',5],['ろく',6],['ろっ',6],['なな',7],['しち',7],['なの',7],['はち',8],['ぱち',8],['はっ',8],
+  ['さ',3],['に',2],['よ',4],['し',4],['ご',5],['こ',5],['ろ',6],['く',9]];
+function fuzzyNums(text){
+  var h=String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}).replace(/[\sー〜、。,.・]|みり/g,'');
+  if(!h||!/^[ぁ-ん]+$/.test(h)||h.length>24)return null;
+  var best=[[]];for(var i=1;i<=h.length;i++)best[i]=null;
+  for(i=0;i<h.length;i++){
+    if(!best[i])continue;
+    for(var k=0;k<FUZ.length;k++){
+      var w=FUZ[k][0];
+      if(h.substr(i,w.length)===w){var c=best[i].concat([FUZ[k][1]]);var j=i+w.length;if(!best[j]||best[j].length>c.length)best[j]=c;}
+    }
+  }
+  return best[h.length];
+}
 function localParse(text){
+  var fz=fuzzyNums(text);
+  if(fz&&fz.length)return {type:'nums',nums:fz};
   text=readingToNum(text);
   // 数字と聞き間違いの漢字だけでできていれば数字に直す（例：「3 2 号」→ 3 2 5）
   var hz=homoToNum(text);
@@ -672,19 +690,25 @@ var CP_RULES=[
   [/^§(\d+)/,function(m,st){st.nums.push(+m[1]);}],
   [/^10(?!\d)/,function(m,st){st.nums.push(10);}],
   [/^\d/,function(m,st){st.nums.push(+m[0]);}],
-  [/^(いち|さん|よん|ろく|なな|しち|はち|きゅう|に|ご|し)/,function(m,st){st.nums.push(CP_NUM[m[1]]);}],
   [HOMONUM_RE,function(m,st){for(var i=0;i<HOMONUM.length;i++)if(HOMONUM[i][0]===m[1]){st.nums.push(HOMONUM[i][1]);return;}}],
-  [/^(みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)+/i,function(){}]
+  [/^(みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)/i,function(){}]
 ];
 function cpVal(x){var v={'〇':0,'零':0,'ぜろ':0,'一':1,'いち':1,'二':2,'に':2,'三':3,'さん':3}[x];return v!=null?v:+x;}
 function compoundParse(text){
-  var t=normalize(String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}));
+  var t=normalize(String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}).replace(/ー/g,''));
   var st={tooth:0,side:'none',nums:[],acts:[],moved:false};
   st.flush=function(){if(st.nums.length){st.acts.push({kind:'pocket',tooth:st.tooth,side:st.side,values:st.nums});st.nums=[];st.moved=false;}};
   var guard=0;
   while(t.length&&guard++<200){
     var hit=false;
-    for(var i=0;i<CP_RULES.length;i++){var m=t.match(CP_RULES[i][0]);if(m&&m[0].length){CP_RULES[i][1](m,st);t=t.slice(m[0].length);hit=true;break;}}
+    // 決まった言葉 → 音の近い数字 → 「の」「は」などのつなぎ言葉 の順に試す
+    var last=CP_RULES.length-1;
+    for(var i=0;i<last;i++){var m=t.match(CP_RULES[i][0]);if(m&&m[0].length){CP_RULES[i][1](m,st);t=t.slice(m[0].length);hit=true;break;}}
+    if(!hit){
+      var run=(t.match(/^[ぁ-ん]+/)||[''])[0],fz=null;
+      for(var L=run.length;L>0&&!fz;L--){fz=fuzzyNums(run.slice(0,L));if(fz){st.nums=st.nums.concat(fz);t=t.slice(L);hit=true;}}
+    }
+    if(!hit){var m2=t.match(CP_RULES[last][0]);if(m2&&m2[0].length){t=t.slice(m2[0].length);hit=true;}}
     if(!hit||st.bad)return null;
   }
   st.flush();
