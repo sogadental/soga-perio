@@ -854,26 +854,31 @@ function smooth(pts){
 }
 // 歯冠の輪郭（頬側から見た形）。x：-0.5〜0.5、y：0＝歯頸部、1＝切縁・咬頭
 var CROWN={
-  inc:[[-.34,0],[-.43,.3],[-.49,.66],[-.47,.9],[-.36,1],[0,1.02],[.36,1],[.47,.9],[.49,.66],[.43,.3],[.34,0],[0,-.06]],
-  can:[[-.35,0],[-.46,.32],[-.48,.6],[-.36,.78],[-.16,.92],[0,1.03],[.16,.92],[.36,.78],[.48,.6],[.46,.32],[.35,0],[0,-.06]],
-  pm:[[-.34,0],[-.46,.34],[-.48,.66],[-.36,.86],[-.15,.96],[0,1.01],[.15,.96],[.36,.86],[.48,.66],[.46,.34],[.34,0],[0,-.05]],
-  mol:[[-.4,0],[-.49,.3],[-.5,.66],[-.44,.9],[-.3,1],[-.15,.97],[0,.9],[.15,.97],[.3,1],[.44,.9],[.5,.66],[.49,.3],[.4,0],[0,-.04]]
+  inc:[[-.34,0],[-.43,.3],[-.49,.66],[-.47,.9],[-.36,1],[0,1.02],[.36,1],[.47,.9],[.49,.66],[.43,.3],[.34,0]],
+  can:[[-.35,0],[-.46,.32],[-.48,.6],[-.36,.78],[-.16,.92],[0,1.03],[.16,.92],[.36,.78],[.48,.6],[.46,.32],[.35,0]],
+  pm:[[-.34,0],[-.46,.34],[-.48,.66],[-.36,.86],[-.15,.96],[0,1.01],[.15,.96],[.36,.86],[.48,.66],[.46,.34],[.34,0]],
+  mol:[[-.4,0],[-.49,.3],[-.5,.66],[-.44,.9],[-.3,1],[-.15,.97],[0,.9],[.15,.97],[.3,1],[.44,.9],[.5,.66],[.49,.3],[.4,0]]
 };
-// 根の輪郭。y：0＝歯頸部、-1＝根尖
+// 根の輪郭（右の歯頸部→根尖→左の歯頸部）。x は歯頸部の幅を1とした割合、y：0＝歯頸部、-1＝根尖
 var ROOT={
-  one:[[-.33,0],[-.33,-.3],[-.27,-.62],[-.15,-.88],[-.03,-1],[.06,-.97],[.17,-.82],[.27,-.56],[.32,-.28],[.33,0]],
-  two:[[-.42,0],[-.44,-.3],[-.41,-.62],[-.34,-.88],[-.25,-1],[-.17,-.93],[-.12,-.66],[-.06,-.42],[0,-.34],[.06,-.42],[.12,-.66],[.17,-.93],[.25,-1],[.34,-.88],[.41,-.62],[.44,-.3],[.42,0]]
+  one:[[1,0],[.97,-.3],[.8,-.58],[.48,-.84],[.12,-1],[-.12,-.98],[-.5,-.82],[-.8,-.56],[-.97,-.28],[-1,0]],
+  two:[[1,0],[1.05,-.28],[1,-.6],[.85,-.88],[.62,-1],[.42,-.92],[.3,-.65],[.15,-.42],[0,-.34],[-.15,-.42],[-.3,-.65],[-.42,-.92],[-.62,-1],[-.85,-.88],[-1,-.6],[-1.05,-.28],[-1,0]]
 };
+// 歯を1本の輪郭で描く（歯冠と歯根の境目に段差が出ないように）
 function toothPath(cx,cej,d,sh,primary){
   var s=primary?0.82:1,w=sh.w*s,h=sh.h*s,L=sh.root*s;
-  function map(arr,ln){return arr.map(function(p){return [cx+p[0]*w, cej+d*p[1]*(p[1]>=0?h:ln)];});}
-  // 左右の歯で向きをそろえる（近心側をやや大きく）
-  var crown=smooth(map(CROWN[sh.type],L));
-  var rtype=(sh.type==='mol')?'two':'one';
-  var rootPts=ROOT[rtype];
-  if(sh.type==='pm'&&sh.n===4&&sh.U)rootPts=ROOT.two; // 上顎第一小臼歯は2根
-  var root=smooth(map(rootPts,L).concat([]));
-  return {crown:crown,roots:[root]};
+  function P(x,y){return [cx+x*w, cej+d*y*(y>=0?h:L)];}
+  var cp=CROWN[sh.type],cw=cp[cp.length-1][0];          // 歯頸部の半分の幅
+  var rp=(sh.type==='mol'||(sh.type==='pm'&&sh.n===4&&sh.U))?ROOT.two:ROOT.one;
+  var crownPts=cp.map(function(p){return P(p[0],p[1]);});
+  var rootPts=rp.slice(1,-1).map(function(p){return P(p[0]*cw,p[1]);});
+  var body=smooth(crownPts.concat(rootPts));             // 歯全体の輪郭
+  // 歯冠（白い部分）：歯頸部は根の方へゆるく弧を描く（CEJ）
+  var dip=[[cw*.55,-.06],[0,-.09],[-cw*.55,-.06]].map(function(p){return P(p[0],p[1]);});
+  var crown=smooth(crownPts.concat(dip));
+  var a=P(-cw,0),m=P(0,-.18),b=P(cw,0);
+  var cejLine='M'+a[0].toFixed(1)+','+a[1].toFixed(1)+' Q'+m[0].toFixed(1)+','+m[1].toFixed(1)+' '+b[0].toFixed(1)+','+b[1].toFixed(1);
+  return {body:body,crown:crown,cej:cejLine};
 }
 function panelSVG(teeth,jaw,side,y0){
   // jaw U：歯冠が下、根が上（d=+1）／ L：歯冠が上、根が下（d=-1）
@@ -886,8 +891,10 @@ function panelSVG(teeth,jaw,side,y0){
     var t=S.teeth[tooth];var cx=LM+k*TW+TW/2;var sh=toothShape(tooth%10,jaw);
     if(t.missing){if(seg.length){segs.push(seg);seg=[];}return;}
     var p=toothPath(cx,cej,d,sh,t.primary);
-    p.roots.forEach(function(rp){g+='<path d="'+rp+'" fill="url(#rootg)" stroke="#d2ac86" stroke-width="1.1"/>';});
-    g+='<path d="'+p.crown+'" fill="url(#enamel)" stroke="#b8a9ae" stroke-width="1.2"/>';
+    g+='<path d="'+p.body+'" fill="url(#rootg)"/>';
+    g+='<path d="'+p.crown+'" fill="url(#enamel)"/>';
+    g+='<path d="'+p.cej+'" fill="none" stroke="#e2c9b0" stroke-width="1"/>';
+    g+='<path d="'+p.body+'" fill="none" stroke="#bfa79a" stroke-width="1.2" stroke-linejoin="round"/>';
     var idxs=[0,1,2];
     idxs.forEach(function(i){
       var pd=t.pd[side][i];if(pd==null)return;
