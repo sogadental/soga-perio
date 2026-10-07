@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev12・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev13・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -1199,6 +1199,7 @@ function handleBopVoice(text){
   if(/^(数値入力|出血入力終了|出血終了|通常入力)[\s。]*$/.test(t)){
     bopVoice.on=false;return ['数値入力に戻りました'];
   }
+  t=t.replace(/([一二三四])?十([一二三四五六七八])番/g,function(m,a,b){return ((a?KANJI[a]:1)*10+KANJI[b])+'番';});
   var starting=/^(出血入力|出血モード|しゅっけつにゅうりょく)/.test(t);
   if(!starting&&!bopVoice.on)return null;
   if(starting)t=t.replace(/^(出血入力|出血モード|しゅっけつにゅうりょく)/,'');
@@ -1207,7 +1208,9 @@ function handleBopVoice(text){
   while(t.length&&guard++<200){
     var m;
     if((m=t.match(/^[\s、。,・：:と]+/))){t=t.slice(m[0].length);continue;}
-    if((m=t.match(/^(右上|左上|右下|左下)(?:の)?\s*([1-8一二三四五六七八]|いち|に|さん|よん|ご|ろく|なな|しち|はち)\s*番?/))){
+    if((m=t.match(/^([1-4][1-8])\s*番/))){
+      tooth=+m[1];
+    }else if((m=t.match(/^(右上|左上|右下|左下)(?:の)?\s*([1-8一二三四五六七八]|いち|に|さん|よん|ご|ろく|なな|しち|はち)\s*番?/))){
       tooth=CP_JAW[m[1]]*10+(/^\d$/.test(m[2])?+m[2]:CP_NUM[m[2]]);
     }else if((m=t.match(/^(頬側|唇側|外側|きょうそく)/))){side='b';
     }else if((m=t.match(/^(舌側|口蓋側|口蓋|内側|ぜっそく)/))){side='l';
