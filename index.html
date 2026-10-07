@@ -34,6 +34,7 @@ input,select,textarea{font-size:16px;font-family:inherit}
 .tbtn{border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:8px 15px;font-size:14px}
 .tbtn:active{background:var(--key-hi)}
 .tbtn.clr{color:#d0587a;border-color:#f3b7c8;background:#fff5f8;font-weight:700}
+.vmode button{font-size:13px;padding:8px 12px}
 .mic{border:0;border-radius:999px;padding:12px 22px;font-size:16px;font-weight:700;background:var(--mint);color:#fff;min-width:170px;box-shadow:0 4px 12px rgba(79,184,155,.35)}
 .mic.on{background:var(--red);box-shadow:0 4px 12px rgba(229,72,77,.35);animation:pulse 1.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}70%{box-shadow:0 0 0 14px rgba(229,72,77,0)}100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}}
@@ -240,7 +241,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.8・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 1.9・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -259,6 +260,7 @@ dialog a{color:var(--accent)}
     </div>
     <div class="now">
       <button class="mic" id="mic">● 音声入力 開始</button>
+      <span class="seg vmode"><button data-vm="fast">その場で入力</button><button data-vm="batch">まとめて録音</button></span>
       <span class="lvl"><i id="lvl"></i></span><span class="vstate" id="vstate"></span>
       <div class="pos" id="pos"></div>
       <div class="heard" id="heard">「右上7番 頬側 3 2 4」「出血」「左下6番 動揺1」のように話してください。</div>
@@ -398,6 +400,7 @@ dialog a{color:var(--accent)}
   <select id="setMode" style="width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff">
     <option value="fast">高速：端末の音声認識（数字や「出血」はすぐ反映、長い文だけGemini）</option>
     <option value="wave">高精度：音声（波形）をそのままGeminiで解析（少し待つ）</option>
+    <option value="batch">まとめて録音：全部録音してGeminiでまとめて解析（約1分半ごとに解析）</option>
   </select>
   <label>Geminiのモデル名</label>
   <input id="setModel">
@@ -1093,12 +1096,12 @@ var GEM_SCHEMA={type:'OBJECT',properties:{transcript:{type:'STRING'},actions:{ty
 function ctxText(ctx){
   return '今の入力位置：歯 '+(ctx&&ctx.tooth||'不明')+'、面 '+(ctx&&ctx.side==='lingual'?'口蓋側/舌側':'頬側')+'、方式 '+(ctx&&ctx.mode||6)+'点法';
 }
-function gemCall(parts){
+function gemCall(parts,opt){
   var key=gemKey();
   if(!key)return Promise.reject(new Error('右上の「設定」でGeminiのAPIキーを入れてください'));
   var body={systemInstruction:{parts:[{text:GEM_SYS}]},contents:[{role:'user',parts:parts}],
     generationConfig:{responseMimeType:'application/json',responseSchema:GEM_SCHEMA,thinkingConfig:{thinkingLevel:'minimal'}}};
-  if(window._noThink===false)delete body.generationConfig.thinkingConfig;
+  if(window._noThink===false||(opt&&opt.full))delete body.generationConfig.thinkingConfig;
   return gemFetch(key,body).catch(function(e){
     if(window._noThink!==false&&/thinking/i.test(errMsg(e))){window._noThink=false;delete body.generationConfig.thinkingConfig;return gemFetch(key,body);}
     throw e;
@@ -1162,7 +1165,10 @@ function enqueue(text){queue=queue.then(function(){return handleUtterance(text);
 var recog=null,listening=false;
 function micUI(){
   $('mic').classList.toggle('on',listening);
-  $('mic').textContent=listening?'■ 音声入力 停止':'● 音声入力 開始';
+  var b=voiceMode()==='batch';
+  $('mic').textContent=listening?(b?'■ 録音終了 → 解析':'■ 音声入力 停止'):(b?'● 録音 開始':'● 音声入力 開始');
+  [].forEach.call(document.querySelectorAll('[data-vm]'),function(x){
+    var m=voiceMode();x.classList.toggle('on',x.getAttribute('data-vm')===(m==='wave'?'fast':m));x.disabled=listening;});
 }
 function isIOS(){
   var u=navigator.userAgent||'';
@@ -1196,6 +1202,7 @@ var AC=null,micStream=null,proc=null,inSpeech=false,segBuf=[],preBuf=[],silentMs
 function vstate(t){$('vstate').textContent=t;}
 function startMic(){
   if(voiceMode()==='fast'){startFast();return;}
+  if(voiceMode()==='batch'){startBatch();return;}
   startWave();
 }
 function startFast(){
@@ -1271,6 +1278,7 @@ function startWave(){
 }
 function onAudio(ev){
   if(!listening)return;
+  if(batchOn){onBatch(new Float32Array(ev.inputBuffer.getChannelData(0)));return;}
   var d=new Float32Array(ev.inputBuffer.getChannelData(0));
   var sum=0;for(var i=0;i<d.length;i++)sum+=d[i]*d[i];
   var rms=Math.sqrt(sum/d.length),ms=d.length/AC.sampleRate*1000;
@@ -1325,7 +1333,51 @@ function sendAudio(chunks,rate){
     .then(function(){pending--;vstate(listening?(pending?'解析中…（'+pending+'）':'聞いています'):'');});
   });
 }
+/* ───────── まとめて録音 ───────── */
+// 話しているあいだはずっと録音し、約1分半ごと（話の切れ目）に区切ってGeminiへ。終了時に残りを送る
+var batchOn=false,bBuf=[],bMs=0,bSilent=0,bSpeech=0,bTotal=0,bTimer=null;
+function startBatch(){
+  if(!gemKey()){toast('右上の「設定」でGeminiのAPIキーを入れてください');openSettings();return;}
+  batchOn=true;bBuf=[];bMs=0;bSilent=0;bSpeech=0;bTotal=0;
+  startWave();
+  clearInterval(bTimer);bTimer=setInterval(batchState,500);
+}
+function batchState(){
+  if(!batchOn)return;
+  var sec=Math.floor(bTotal/1000);
+  vstate('録音中 '+Math.floor(sec/60)+':'+('0'+sec%60).slice(-2)+(pending?'・解析中（'+pending+'）':''));
+}
+function onBatch(d){
+  var sum=0;for(var i=0;i<d.length;i++)sum+=d[i]*d[i];
+  var rms=Math.sqrt(sum/d.length),ms=d.length/AC.sampleRate*1000;
+  var loud=rms>Math.max(0.006,noise*2.2);
+  if(!loud)noise=noise*0.97+rms*0.03;
+  $('lvl').style.width=Math.min(100,rms/0.15*100)+'%';
+  bBuf.push(d);bMs+=ms;bTotal+=ms;
+  if(loud){bSilent=0;bSpeech+=ms;}else bSilent+=ms;
+  if((bMs>=90000&&bSilent>=400)||bMs>=150000)cutBatch();
+}
+function cutBatch(){
+  var buf=bBuf,sp=bSpeech,rate=AC?AC.sampleRate:48000;
+  bBuf=[];bMs=0;bSpeech=0;
+  if(sp<300||!buf.length)return;
+  var b64=toWav(buf,rate);
+  pending++;batchState();
+  var line=addLog('🎙 録音を解析中…（終わるまで少しお待ちください）','ai');
+  queue=queue.then(function(){
+    return gemCall([{text:ctxText(ctxForAI())+'\nこれは歯周検査の読み上げを録音した音声です（全体、または前の録音の続き）。'+
+      '最初から最後まで聞き取り、transcript に聞き取った日本語の全文を、actions に話された順ですべての指示を漏れなく入れてください。'+
+      '歯や面の指定がない数字の並びは、今の入力位置から順に入るポケット深さとして pocket にしてください。言い直し（「違う」「訂正」など）は直したほうだけにしてください。'},
+      {inlineData:{mimeType:'audio/wav',data:b64}}],{full:true}).then(function(res){
+      var notes=applyActions(res&&res.actions);render();
+      line.className=notes.length?'ok':'ng';
+      line.textContent='🎙「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.length+'件入力：'+notes.join('、'):'検査の指示として読み取れませんでした');
+    }).catch(function(e){line.className='ng';line.textContent='🎙 '+errMsg(e);})
+    .then(function(){pending--;if(batchOn)batchState();else vstate(pending?'解析中…（'+pending+'）':(listening?'聞いています':'解析が終わりました'));});
+  });
+}
 function stopMic(){
+  if(batchOn){if(AC)cutBatch();batchOn=false;clearInterval(bTimer);}
   listening=false;
   if(recog){try{recog.onend=null;recog.stop();}catch(x){}recog=null;}
   try{if(proc){proc.disconnect();proc.onaudioprocess=null;}}catch(x){}
@@ -1730,6 +1782,10 @@ function bind(){
   $('m6').addEventListener('click',function(){S.mode=6;render();});
   $('m4').addEventListener('click',function(){S.mode=4;S.cur.s=0;render();});
   $('btnClear').addEventListener('click',allClear);
+  [].forEach.call(document.querySelectorAll('[data-vm]'),function(x){x.addEventListener('click',function(){
+    if(listening)return;lsSet('voiceMode',x.getAttribute('data-vm'));micUI();
+    toast(x.getAttribute('data-vm')==='batch'?'まとめて録音：話し終わったら「録音終了」を押すとGeminiが解析します':'その場で入力：話すたびにすぐ入ります');});});
+  micUI();
   $('mic').addEventListener('click',function(){
     if(dictOn){stopDict();return;}
     listening?stopMic():startMic();
