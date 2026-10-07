@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev4・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev5・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -398,6 +398,7 @@ dialog a{color:var(--accent)}
   <div id="keyState" style="font-size:14px"></div>
   <label>Gemini APIキー（変更するときだけ入力）</label>
   <input id="setKey" type="password" autocomplete="off" placeholder="AIza…">
+  <label><input id="setClick" type="checkbox"> 1歯の片面を入力したらクリック音</label>
   <label>音声入力の方式</label>
   <select id="setMode" style="width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff">
     <option value="fast">高速：端末の音声認識（数字や「出血」はすぐ反映、長い文だけGemini）</option>
@@ -563,6 +564,34 @@ function undo(){
   var o=JSON.parse(h);S.teeth=o.teeth;S.cur=o.cur;S.tcur=o.tcur;S.last=o.last;S.chk=o.chk||{};return true;
 }
 
+/* ───────── 入力確認音 ───────── */
+var clickContext=null,clickNext=0;
+function prepareClickSound(){
+  if(lsGet('clickSound')==='off')return;
+  try{
+    var Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx)return;
+    if(!clickContext||clickContext.state==='closed'){clickContext=new Ctx();clickNext=0;}
+    if(clickContext.state==='suspended')clickContext.resume().catch(function(){});
+  }catch(e){}
+}
+function playInputClick(){
+  if(lsGet('clickSound')==='off')return;
+  try{
+    if(!clickContext||clickContext.state!=='running')return;
+    var at=Math.max(clickContext.currentTime,clickNext);
+    clickNext=at+0.10;
+    var osc=clickContext.createOscillator(),gain=clickContext.createGain();
+    osc.type='triangle';osc.frequency.setValueAtTime(1800,at);
+    osc.frequency.exponentialRampToValueAtTime(700,at+0.035);
+    gain.gain.setValueAtTime(0.0001,at);
+    gain.gain.exponentialRampToValueAtTime(0.12,at+0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001,at+0.045);
+    osc.connect(gain);gain.connect(clickContext.destination);
+    osc.onended=function(){osc.disconnect();gain.disconnect();};
+    osc.start(at);osc.stop(at+0.05);
+  }catch(e){}
+}
 /* ───────── 値の書き込み ───────── */
 function rememberLast(tooth,side,idx){
   if(S.last&&S.last.tooth===tooth&&S.last.side===side){if(S.last.idxs.indexOf(idx)<0)S.last.idxs.push(idx);}
@@ -574,8 +603,13 @@ function putSite(field,v){
   if(field==='pl')t.pl[ci.side][ci.idx]=!!v;
   else if(v!=null&&v<0){t[field][ci.side][ci.idx]=null;S.chk=S.chk||{};S.chk[ci.tooth+ci.side+ci.idx]=1;}
   else{t[field][ci.side][ci.idx]=v;if(S.chk)delete S.chk[ci.tooth+ci.side+ci.idx];}
+  var ord=siteOrder(ci.g);
+  var completed=field==='pd'&&S.cur.s===ord.length-1&&ord.every(function(i){
+    return Number.isInteger(t.pd[ci.side][i])&&!(S.chk&&S.chk[ci.tooth+ci.side+i]);
+  });
   rememberLast(ci.tooth,ci.side,ci.idx);
   stepFwd();
+  if(completed)playInputClick();
   return true;
 }
 function fillNumbers(field,nums){
@@ -1548,12 +1582,14 @@ function applySettings(s){
 function openSettings(){
   $('keyState').innerHTML=gemKey()?'APIキー：<b style="color:#2f8f75">このiPadに設定済み</b>':'APIキー：<b style="color:#e5484d">未設定</b>（Google AI Studioで作ったキーを入れてください）';
   $('setKey').value='';$('setModel').value=gemModel();$('setMode').value=voiceMode();$('setBatchModel').value=batchModel();
+  $('setClick').checked=lsGet('clickSound')!=='off';
   $('dlgSet').showModal();
 }
 function saveSettingsUI(){
   var k=$('setKey').value.trim();if(k)lsSet('gemKey',k);
   var m=$('setModel').value.trim();if(m)lsSet('gemModel',m);
   var bm=$('setBatchModel').value.trim();if(bm)lsSet('batchModel',bm);
+  lsSet('clickSound',$('setClick').checked?'on':'off');
   lsSet('voiceMode',$('setMode').value);if(listening){stopMic();}
   $('setKey').value='';openSettings();toast('設定を保存しました（このiPadだけに保存）');
 }
@@ -1771,6 +1807,8 @@ function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clear
 
 /* ───────── イベント ───────── */
 function bind(){
+  document.addEventListener('pointerdown',prepareClickSound,{passive:true});
+  document.addEventListener('keydown',prepareClickSound);
   $('pad').addEventListener('click',function(e){var b=e.target.closest('button');if(b)pad(b.dataset.k);});
   $('tabs').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
     var ci=curInfo();S.tab=b.dataset.tab;S.plus10=false;S.bulk=false;
