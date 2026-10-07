@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev11・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev12・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -1194,7 +1194,8 @@ function ctxForAI(){
 var bopVoice={on:false,tooth:null,side:'b'};
 function handleBopVoice(text){
   var t=String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}).replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);});
-  t=t.replace(/[ＭＯＤｍｏｄ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);});
+  t=t.replace(/[ＭＢＬＰＤｍｂｌｐｄ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);});
+  t=t.replace(/えむ/g,'M').replace(/びー/g,'B').replace(/える/g,'L').replace(/ぴー/g,'P').replace(/でぃー/g,'D');
   if(/^(数値入力|出血入力終了|出血終了|通常入力)[\s。]*$/.test(t)){
     bopVoice.on=false;return ['数値入力に戻りました'];
   }
@@ -1210,12 +1211,18 @@ function handleBopVoice(text){
       tooth=CP_JAW[m[1]]*10+(/^\d$/.test(m[2])?+m[2]:CP_NUM[m[2]]);
     }else if((m=t.match(/^(頬側|唇側|外側|きょうそく)/))){side='b';
     }else if((m=t.match(/^(舌側|口蓋側|口蓋|内側|ぜっそく)/))){side='l';
-    }else if((m=t.match(/^(遠心|えんしん|円心|中央|ちゅうおう|真ん中|近心|きんしん|近親|えむ|おー|でぃー|[MOD])/i))){
+    }else if((m=t.match(/^(遠心|えんしん|円心|中央|ちゅうおう|真ん中|近心|きんしん|近親|[MBLPD](?:[\s、・]*[MBLPD])*)/i))){
       if(!validTooth(tooth))return ['歯番を先に言ってください。出血点は入力していません'];
-      var name=/^(遠心|えんしん|円心|でぃー|D)$/i.test(m[1])?'distal':/^(近心|きんしん|近親|えむ|M)$/i.test(m[1])?'mesial':'center';
-      var idx=nameToIdx(tooth,name);
-      if(S.teeth[tooth].missing||S.teeth[tooth].excluded||(S.mode===4&&side==='l'&&idx!==1))return ['計測対象外の部位です。出血点は入力していません'];
-      points.push({tooth:tooth,side:side,idx:idx});
+      var letters=/^[MBLPD]/i.test(m[1])?m[1].toUpperCase().replace(/[\s、・]/g,''):null;
+      if(letters&&letters.indexOf('B')>=0&&(letters.indexOf('L')>=0||letters.indexOf('P')>=0))return ['頬側と舌側・口蓋側は歯番ごとに分けてください。出血点は入力していません'];
+      if(letters&&letters.indexOf('B')>=0)side='b';
+      if(letters&&(letters.indexOf('L')>=0||letters.indexOf('P')>=0))side='l';
+      var names=letters?letters.split('').map(function(c){return c==='M'?'mesial':c==='D'?'distal':'center';}):[/^(遠心|えんしん|円心)$/.test(m[1])?'distal':/^(近心|きんしん|近親)$/.test(m[1])?'mesial':'center'];
+      for(var j=0;j<names.length;j++){
+        var idx=nameToIdx(tooth,names[j]);
+        if(S.teeth[tooth].missing||S.teeth[tooth].excluded||(S.mode===4&&side==='l'&&idx!==1))return ['計測対象外の部位です。出血点は入力していません'];
+        points.push({tooth:tooth,side:side,idx:idx});
+      }
     }else{return ['出血点を読み取れませんでした。歯番・頬側か舌側・部位を言い直してください'];}
     t=t.slice(m[0].length);
   }
@@ -1224,7 +1231,7 @@ function handleBopVoice(text){
   bopVoice={on:true,tooth:tooth,side:side};
   points.forEach(function(p){S.teeth[p.tooth].bop[p.side][p.idx]=true;});
   playInputClick();
-  return points.length?points.map(function(p){return toothLabel(p.tooth)+' '+sideLabel(p.tooth,p.side)+' '+idxName(p.tooth,p.idx,p.side)+' 出血';}):['出血入力中。例：右上2 頬側 MOD（エム・オー・ディー）。終了は「数値入力」'];
+  return points.length?points.map(function(p){return toothLabel(p.tooth)+' '+sideLabel(p.tooth,p.side)+' '+idxName(p.tooth,p.idx,p.side)+' 出血';}):['出血入力中。例：右上2 MBD／MPD、右下5 MLD。終了は「数値入力」'];
 }
 function handleUtterance(text){
   text=String(text||'').trim();if(!text)return Promise.resolve();
