@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev5・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev6・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -398,7 +398,7 @@ dialog a{color:var(--accent)}
   <div id="keyState" style="font-size:14px"></div>
   <label>Gemini APIキー（変更するときだけ入力）</label>
   <input id="setKey" type="password" autocomplete="off" placeholder="AIza…">
-  <label><input id="setClick" type="checkbox"> 1歯の片面を入力したらクリック音</label>
+  <label><input id="setClick" type="checkbox"> 入力完了・移動・取り消しのクリック音</label>
   <label>音声入力の方式</label>
   <select id="setMode" style="width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff">
     <option value="fast">高速：端末の音声認識（数字や「出血」はすぐ反映、長い文だけGemini）</option>
@@ -692,7 +692,7 @@ function localParse(text){
   if(/^(歯石|歯石あり|しせき)$/.test(w))return {type:'flag',f:'calc'};
   if(/^(プラーク|プラークあり)$/.test(w))return {type:'flag',f:'pl'};
   if(/^(欠損|けっそん)$/.test(w))return {type:'missing'};
-  if(/^(取り消し|取消|取り消す|戻して|間違い|間違えた|元に戻す|今のなし)$/.test(w))return {type:'undo'};
+  if(/^(取り消し|取消|取り消す|戻して|戻る|間違い|間違えた|元に戻す|今のなし)$/.test(w))return {type:'undo'};
   if(/^(次|次の歯|スキップ|飛ばして)$/.test(w))return {type:'skip'};
   return null;
 }
@@ -776,10 +776,10 @@ function applyActions(actions,said){
   actions=keepOrder(actions,said);
   var notes=[];
   if(!actions||!actions.length)return notes;
-  if(actions.length===1&&actions[0].kind==='undo'){if(undo())notes.push('元に戻しました');return notes;}
+  if(actions.length===1&&actions[0].kind==='undo'){if(undo()){notes.push('元に戻しました');playInputClick();}return notes;}
   snap();
   actions.forEach(function(a){
-    var k=a.kind,r,t;
+    var k=a.kind,r,t,noteCount=notes.length;
     if(k==='pocket'||k==='recession'){
       if(validTooth(a.tooth)){moveTo(a.tooth,sideCode(a.side));S.teeth[a.tooth].missing=false;}
       else if(sideCode(a.side)&&curInfo()){moveTo(curInfo().tooth,sideCode(a.side));}
@@ -813,12 +813,14 @@ function applyActions(actions,said){
     }else if(k==='move'){
       if(validTooth(a.tooth))moveTo(a.tooth,sideCode(a.side));
       else if(sideCode(a.side)&&curInfo())moveTo(curInfo().tooth,sideCode(a.side));
+      else return;
       notes.push('移動');
     }else if(k==='skip'){
       if(SITE_TABS[S.tab])nextTooth();else tStep(1);notes.push('次の歯へ');
     }else if(k==='undo'){
-      HIST.pop();undo();notes.push('元に戻しました');
+      HIST.pop();if(undo())notes.push('元に戻しました');
     }
+    if(k!=='pocket'&&k!=='recession'&&notes.length>noteCount)playInputClick();
   });
   return notes;
 }
@@ -1185,6 +1187,7 @@ function handleUtterance(text){
   var p=localParse(text);
   if(p){
     var notes=applyLocal(p);render();
+    if(p.type!=='nums'&&notes.length)playInputClick();
     addLog('「'+text+'」→ '+(notes.join('、')||'—'),'ok');
     return Promise.resolve();
   }
