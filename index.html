@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev2・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -572,7 +572,7 @@ function putSite(field,v){
   var ci=curInfo();if(!ci){toast('最後まで入力しました');return false;}
   var t=S.teeth[ci.tooth];
   if(field==='pl')t.pl[ci.side][ci.idx]=!!v;
-  else if(v!=null&&v<0){S.chk=S.chk||{};S.chk[ci.tooth+ci.side+ci.idx]=1;}
+  else if(v!=null&&v<0){t[field][ci.side][ci.idx]=null;S.chk=S.chk||{};S.chk[ci.tooth+ci.side+ci.idx]=1;}
   else{t[field][ci.side][ci.idx]=v;if(S.chk)delete S.chk[ci.tooth+ci.side+ci.idx];}
   rememberLast(ci.tooth,ci.side,ci.idx);
   stepFwd();
@@ -604,7 +604,7 @@ function normalize(text){
   return t;
 }
 // 数字の読み（さん・に・よん…）を数字に直す。文全体が数字の読みだけのときに限る
-var NUMREAD=[['じゅう','十'],['きゅう','9'],['なな','7'],['しち','7'],['はち','8'],['よん','4'],['ろく','6'],['さん','3'],['いち','1'],['ぜろ','0'],['れい','0'],['ご','5'],['に','2'],['し','4'],['く','9']];
+var NUMREAD=[['じゅうに','§12'],['じゅういち','§11'],['じゅう','§10'],['きゅう','9'],['なな','7'],['しち','7'],['はち','8'],['よん','4'],['ろく','6'],['さん','3'],['いち','1'],['ぜろ','0'],['れい','0'],['ご','5'],['に','2'],['し','4'],['く','9']];
 function readingToNum(text){
   var h=String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);});
   var bare=h.replace(/[\s、。,.・]|みり|ミリ/g,'');
@@ -632,29 +632,12 @@ function homoToNum(text){
   }
   return out;
 }
-// ひらがな・カタカナの聞き間違い（例：ジャンニーニ → さん に に）を音の近さで数字に直す
-var FUZ=[['きゅう',9],['きゅ',9],['きう',9],['しゃん',3],['じゃん',3],['いっち',1],['はっち',8],['ろっく',6],['さん',3],['ざん',3],['たん',3],['さむ',3],['いち',1],['いっ',1],['にい',2],['よん',4],['よむ',4],['よお',4],['しい',4],['ごお',5],['ごう',5],['ろく',6],['ろっ',6],['なな',7],['しち',7],['なの',7],['はち',8],['ぱち',8],['はっ',8],
-  ['さ',3],['に',2],['よ',4],['し',4],['ご',5],['こ',5],['ろ',6],['く',9]];
-function fuzzyNums(text){
-  var h=String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}).replace(/[\sー〜、。,.・]|みり/g,'');
-  if(!h||!/^[ぁ-ん]+$/.test(h)||h.length>24)return null;
-  var best=[[]];for(var i=1;i<=h.length;i++)best[i]=null;
-  for(i=0;i<h.length;i++){
-    if(!best[i])continue;
-    for(var k=0;k<FUZ.length;k++){
-      var w=FUZ[k][0];
-      if(h.substr(i,w.length)===w){var c=best[i].concat([FUZ[k][1]]);var j=i+w.length;if(!best[j]||best[j].length>c.length)best[j]=c;}
-    }
-  }
-  return best[h.length];
-}
 function localParse(text){
-  var fz=fuzzyNums(text);
-  if(fz&&fz.length)return {type:'nums',nums:fz};
+  // 曖昧な音の置換は即時確定しない。明確な数字読みだけを先に解析する。
   text=readingToNum(text);
   // 数字と聞き間違いの漢字だけでできていれば数字に直す（例：「3 2 号」→ 3 2 5）
   var hz=homoToNum(text);
-  if(hz!==text&&/^[\s\d、。,.・十〇零一二三四五六七八九]+$/.test(hz.replace(/ミリ|みり|mm/gi,'')))text=hz;
+  if(hz!==text)return null;
   var w0=String(text).replace(/[\s、。,.・]/g,'');
   for(var hi=0;hi<HOMO.length;hi++){if(HOMO[hi][0].test(w0)){text=HOMO[hi][1];break;}}
   var t=normalize(text);
@@ -664,7 +647,7 @@ function localParse(text){
     t.split(/[\s、。,.・]+/).forEach(function(tok){
       tok=tok.replace(/ミリ|mm|ｍｍ/gi,'');if(!tok)return;
       if(tok.charAt(0)==='§'){nums.push(parseInt(tok.slice(1),10));return;}
-      if(tok==='10'){nums.push(10);return;}
+      if(/^(1[0-9]|20)$/.test(tok)){nums.push(+tok);return;}
       tok.split('').forEach(function(c){nums.push(parseInt(c,10));});
     });
     return {type:'nums',nums:nums};
@@ -696,10 +679,9 @@ var CP_RULES=[
   [/^(欠損|けっそん|結尊)/,function(m,st){st.flush();st.acts.push({kind:'missing',tooth:st.tooth||0});st.moved=false;}],
   [/^\d\s*番/,function(m,st){st.bad=true;}],
   [/^§(\d+)/,function(m,st){st.nums.push(+m[1]);}],
-  [/^10(?!\d)/,function(m,st){st.nums.push(10);}],
+  [/^(1[0-9]|20)(?!\d)/,function(m,st){st.nums.push(+m[0]);}],
   [/^\d/,function(m,st){st.nums.push(+m[0]);}],
-  [HOMONUM_RE,function(m,st){for(var i=0;i<HOMONUM.length;i++)if(HOMONUM[i][0]===m[1]){st.nums.push(HOMONUM[i][1]);return;}}],
-  [/^(遠心|えんしん|円心|中央|ちゅうおう|真ん中|まんなか|近心|きんしん|近親|めじある|でぃすたる|みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)/i,function(){}]
+    [/^(遠心|えんしん|円心|中央|ちゅうおう|真ん中|まんなか|近心|きんしん|近親|めじある|でぃすたる|みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)/i,function(){}]
 ];
 function cpVal(x){var v={'〇':0,'零':0,'ぜろ':0,'一':1,'いち':1,'二':2,'に':2,'三':3,'さん':3}[x];return v!=null?v:+x;}
 function compoundParse(text){
@@ -709,13 +691,9 @@ function compoundParse(text){
   var guard=0;
   while(t.length&&guard++<200){
     var hit=false;
-    // 決まった言葉 → 音の近い数字 → 「の」「は」などのつなぎ言葉 の順に試す
+    // 決まった言葉と明示された数字を解析する。曖昧な音はAI解析へ送る。
     var last=CP_RULES.length-1;
     for(var i=0;i<last;i++){var m=t.match(CP_RULES[i][0]);if(m&&m[0].length){CP_RULES[i][1](m,st);t=t.slice(m[0].length);hit=true;break;}}
-    if(!hit){
-      var run=(t.match(/^[ぁ-ん]+/)||[''])[0],fz=null;
-      for(var L=run.length;L>0&&!fz;L--){fz=fuzzyNums(run.slice(0,L));if(fz){st.nums=st.nums.concat(fz);t=t.slice(L);hit=true;}}
-    }
     if(!hit){var m2=t.match(CP_RULES[last][0]);if(m2&&m2[0].length){t=t.slice(m2[0].length);hit=true;}}
     if(!hit||st.bad)return null;
   }
@@ -771,7 +749,9 @@ function applyActions(actions,said){
     if(k==='pocket'||k==='recession'){
       if(validTooth(a.tooth)){moveTo(a.tooth,sideCode(a.side));S.teeth[a.tooth].missing=false;}
       else if(sideCode(a.side)&&curInfo()){moveTo(curInfo().tooth,sideCode(a.side));}
-      var vals=(a.values||[]).map(function(v){return v<0?-1:v;}).filter(function(v){return v<=20;});
+      var vals=(Array.isArray(a.values)?a.values:[]).map(function(v){
+        return Number.isInteger(v)&&v>=0&&v<=20?v:-1;
+      });
       fillNumbers(k==='pocket'?'pd':'rec',vals);
       notes.push((validTooth(a.tooth)?toothLabel(a.tooth)+(a.side==='lingual'?'舌側':a.side==='buccal'?'頬側':'')+' ':'')+(k==='pocket'?'':'退縮 ')+vals.map(function(v){return v<0?'？':v;}).join('・'));
     }else if(FLAGMAP[k]){
@@ -1087,6 +1067,7 @@ function gemKey(){return lsGet('gemKey');}
 function gemModel(){return lsGet('gemModel')||GEM_DEFAULT;}
 var GEM_SYS=[
   'あなたは歯科医院の歯周検査で、術者が読み上げた日本語を構造化データに変換する係です。',
+  'PDは主に1〜12mm。明確に聞こえた整数だけを確定し、不明な位置はvaluesに-1を置く。0や13〜20は明確に発話された場合だけ採用する。歯番・面・数値・出血・排膿を文脈だけで創作しない。',
   '歯番はFDI方式の2桁で答えてください。右上=1x、左上=2x、左下=3x、右下=4x。',
   '例：「右上7番」=17、「左下6番」=36、「右下1番」=41、「ろく」=6。',
   '面：頬側・唇側・バッカル・外側=buccal、口蓋側・舌側・リンガル・パラタル・内側=lingual。',
@@ -1140,14 +1121,24 @@ function gemCall(parts,opt){
   });
 }
 function gemFetch(key,body,model){
+  var controller=new AbortController(),timeout=false;
+  var timer=setTimeout(function(){timeout=true;controller.abort();},120000);
   return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model||gemModel())+':generateContent',
-    {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)})
-    .then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});},function(){throw new Error('通信できませんでした');})
+    {method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});})
     .then(function(x){
       if(!x.ok)throw new Error('Geminiエラー（'+x.status+'）：'+((x.j&&x.j.error&&x.j.error.message)||''));
-      var t='';try{t=x.j.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');}catch(e){throw new Error('Geminiから結果が返りませんでした');}
-      return JSON.parse(t);
-    });
+      var candidate=x.j.candidates&&x.j.candidates[0];
+      if(!candidate||!candidate.content||!candidate.content.parts)throw new Error('Geminiから解析結果がありません（'+(x.j.promptFeedback&&x.j.promptFeedback.blockReason||candidate&&candidate.finishReason||'結果なし')+'）');
+      var t=candidate.content.parts.filter(function(p){return !p.thought;}).map(function(p){return p.text||'';}).join('');
+      var result;try{result=JSON.parse(t);}catch(e){throw new Error('Geminiの解析結果がJSON形式ではありません（'+(candidate.finishReason||'不明')+'）');}
+      if(!result||!Array.isArray(result.actions))throw new Error('Geminiの解析結果にactions配列がありません');
+      return result;
+    }).catch(function(e){
+      if(timeout)throw new Error('Geminiが120秒以内に応答しませんでした。通信・API利用状況を確認してください');
+      if(e instanceof TypeError)throw new Error('Geminiへ通信できませんでした');
+      throw e;
+    }).finally(function(){clearTimeout(timer);});
 }
 // 以前のサーバー呼び出しの代わり（お試し版は文字の解析だけ）
 function run(fn,text,ctx){
@@ -1191,7 +1182,7 @@ function handleUtterance(text){
     line.className='ng';line.textContent='「'+text+'」→ '+errMsg(e);
   });
 }
-function enqueue(text){queue=queue.then(function(){return handleUtterance(text);});}
+function enqueue(text){queue=queue.catch(function(){return;}).then(function(){return handleUtterance(text);}).catch(function(e){addLog('入力エラー：'+errMsg(e),'ng');vstate('入力エラー：'+errMsg(e));});}
 
 /* ───────── 音声認識 ───────── */
 var recog=null,listening=false;
@@ -1355,7 +1346,7 @@ function sendAudio(chunks,rate){
   var b64=toWav(chunks,rate);
   pending++;vstate('解析中…（'+pending+'）');
   var line=addLog('🎤 解析中…','ai');
-  queue=queue.then(function(){
+  queue=queue.catch(function(){return;}).then(function(){
     return gemCall([{text:ctxText(ctxForAI())+'\n次の音声を聞き取り、transcript に聞き取った日本語を、actions に検査の指示を入れてください。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}]).then(function(res){
       var notes=applyActions(res&&res.actions,res&&res.transcript||'');render();
@@ -1368,10 +1359,10 @@ function sendAudio(chunks,rate){
 }
 /* ───────── まとめて録音 ───────── */
 // 話しているあいだはずっと録音し、約1分半ごと（話の切れ目）に区切ってGeminiへ。終了時に残りを送る
-var batchOn=false,bBuf=[],bMs=0,bSilent=0,bSpeech=0,bTotal=0,bTimer=null;
+var batchOn=false,bBuf=[],bMs=0,bSilent=0,bSpeech=0,bTotal=0,bTimer=null,bLastResult='';
 function startBatch(){
   if(!gemKey()){toast('右上の「設定」でGeminiのAPIキーを入れてください');openSettings();return;}
-  batchOn=true;bBuf=[];bMs=0;bSilent=0;bSpeech=0;bTotal=0;
+  bLastResult='';batchOn=true;bBuf=[];bMs=0;bSilent=0;bSpeech=0;bTotal=0;
   startWave();
   clearInterval(bTimer);bTimer=setInterval(batchState,500);
   setTimeout(function(){if(batchOn&&listening&&bTotal===0){
@@ -1409,30 +1400,34 @@ function bMsAll(buf,rate){var n=0;buf.forEach(function(c){n+=c.length;});return 
 function cutBatch(){
   var buf=bBuf,sp=bSpeech,rate=AC?AC.sampleRate:48000;
   bBuf=[];bMs=0;bSpeech=0;
-  if(!buf.length){addLog('🎙 録音が空でした（マイクの音が届いていません）','ng');return;}
-  if(bMsAll(buf,rate)<800){return;}
+  if(!buf.length){bLastResult='録音が空でした（マイクの音が届いていません）';addLog('🎙 '+bLastResult,'ng');return;}
+  if(bMsAll(buf,rate)<800){bLastResult='録音が短すぎます（0.8秒未満）。もう一度録音してください';addLog('🎙 '+bLastResult,'ng');return;}
   var b64=toWav(buf,rate);
   pending++;batchState();
-  var line=addLog('🎙 録音を解析中…（終わるまで少しお待ちください）','ai');
-  queue=queue.then(function(){
+  var line=addLog('🎙 '+(bMsAll(buf,rate)/1000).toFixed(1)+'秒の録音を解析待ち…','ai');
+  queue=queue.catch(function(){return;}).then(function(){
+    line.textContent='🎙 録音をGeminiへ送信・解析中…';vstate('録音を送信・解析中…');
     return gemCall([{text:ctxText(ctxForAI())+'\nこれは歯周検査の読み上げを録音した音声です（全体、または前の録音の続き）。'+
       '手順：(1) まず音声を最初から最後まで注意深く聞き、transcript に一言も省かず書き起こす。数字は算用数字で1つずつ空白で区切る（例：3 2 4）。'+
       '(2) 次に transcript をもとに、話された順ですべての指示を漏れなく actions に入れる。'+
       '読み上げの特徴：ポケット深さは1〜10mm程度の1桁の数字を、1歯の片面ごとに3つずつ（6点法）続けて読むことが多い。歯・面の指定がない数字の並びは、今の入力位置から順に入るポケット深さとして pocket にまとめてよい。'+
-      '数字の個数は入力位置がずれる原因になるので、聞き取りにくい数字も省かずに一番近い数字で必ず入れる。'+
+      '聞き取りにくい数字は推測せず -1 を入れて位置を残す。発話数や面の境界自体が不明なら actions=[] とし transcript に要確認と記す。数字を個数に合わせて創作しない。'+
       'この読み上げの入力順（今の位置から。欠損歯は除いてある）：'+upcomingSlots(64)+'。'+
       'ポケット深さは上の順に1面ずつ pocket に分け、tooth（FDI番号）と side を必ず付ける。区切りは数字の個数と、話の間（ポーズ）・リズムで判断する。'+
       'ある面で数字が足りないと判断したら（例：3つのはずが2つで間があいた）、聞き取れなかった位置に -1 を入れてその面の個数にそろえ、次の面にずらさない。'+
       '「出血」「排膿」は直前の数字の部位につく。言い直し（「違う」「訂正」「じゃなくて」）は直したほうだけにする。雑談や患者への声かけは無視する。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}],{full:true}).then(function(res){
+      $('heard').textContent='「'+(res&&res.transcript||'聞き取れず')+'」';
       var notes=applyActions(res&&res.actions,res&&res.transcript||'');render();
+      bLastResult=notes.length?'解析完了：'+notes.length+'件入力':'解析は返りましたが、入力できる検査指示がありません。下の結果を確認してください';
       line.className=notes.length?'ok':'ng';
       line.textContent='🎙「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.length+'件入力：'+notes.join('、'):'検査の指示として読み取れませんでした');
-    }).catch(function(e){line.className='ng';line.textContent='🎙 '+errMsg(e);})
-    .then(function(){pending--;if(batchOn)batchState();else vstate(pending?'解析中…（'+pending+'）':(listening?'聞いています':'解析が終わりました'));});
+    }).catch(function(e){bLastResult='録音の解析に失敗：'+errMsg(e);line.className='ng';line.textContent='🎙 '+bLastResult;$('heard').textContent=bLastResult;})
+    .then(function(){pending--;if(batchOn)batchState();else vstate(pending?'解析中…（'+pending+'）':(listening?'聞いています':bLastResult));});
   });
 }
 function stopMic(){
+  var wasBatch=batchOn;
   if(batchOn){if(AC)cutBatch();batchOn=false;clearInterval(bTimer);}
   listening=false;
   if(recog){try{recog.onend=null;recog.stop();}catch(x){}recog=null;}
@@ -1440,7 +1435,7 @@ function stopMic(){
   try{if(micStream)micStream.getTracks().forEach(function(t){t.stop();});}catch(x){}
   try{if(AC)AC.close();}catch(x){}
   proc=null;micStream=null;AC=null;$('lvl').style.width='0';
-  micUI();vstate(pending?'解析中…':'');
+  micUI();vstate(pending?'録音終了・解析待ち（'+pending+'）':(wasBatch?bLastResult:''));
 }
 
 /* ───────── テンキー ───────── */
