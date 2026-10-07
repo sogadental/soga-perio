@@ -240,7 +240,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.7・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 1.8・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -1201,30 +1201,55 @@ function startMic(){
 function startFast(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('この端末では高速モードが使えないため、高精度モードで始めます');startWave();return;}
-  recog=new SR();recog.lang='ja-JP';recog.continuous=true;recog.interimResults=true;
-  var done='',idle=null;
+  recog=new SR();recog.lang='ja-JP';recog.continuous=true;recog.interimResults=true;recog.maxAlternatives=5;
+  // done：反映済みの文字（空白・句読点を除いて比べる）
+  var done='',idle=null,lastEv=null;
+  function nz(x){return String(x||'').replace(/[\s、。,.・ー]/g,'');}
+  function restOf(full){
+    var nf=nz(full),nd=nz(done);
+    var k=0;while(k<nd.length&&k<nf.length&&nf[k]===nd[k])k++;
+    // 認識がリセットされた（先頭から違う）ときは全部を新しい発言として扱う
+    if(nd.length&&k===0)k=0;
+    else if(k<nd.length&&k<nd.length*0.5)k=0;
+    // 元の文字列で k 文字目（空白除く）以降を取り出す
+    var c=0,i=0;while(i<full.length&&c<k){if(!/[\s、。,.・ー]/.test(full[i]))c++;i++;}
+    return full.slice(i);
+  }
+  function parsable(x){x=x.trim();return !!(x&&(localParse(x)||compoundParse(x)));}
   function commit(full){
     clearTimeout(idle);
-    var add=full.indexOf(done)===0?full.slice(done.length):full.slice(Math.min(done.length,full.length));
+    var add=restOf(full);
+    // 1番目の候補で分からなければ、ほかの候補（聞き取りの別案）を試す
+    if(!parsable(add)&&lastEv){
+      var rs=lastEv.results,li=rs.length-1,pre='';
+      for(var i=0;i<li;i++)pre+=rs[i][0].transcript;
+      for(var j=1;j<rs[li].length;j++){var alt=restOf(pre+rs[li][j].transcript);if(parsable(alt)){add=alt;break;}}
+    }
     done=full;add=add.trim();
     if(add)handleUtterance(add);
   }
   recog.onresult=function(e){
+    lastEv=e;
     var full='',fin=true;
     for(var i=0;i<e.results.length;i++){full+=e.results[i][0].transcript;if(!e.results[i].isFinal)fin=false;}
-    $('heard').textContent='聞き取り中：'+full.slice(done.length);
+    var add=restOf(full);
+    $('heard').textContent='聞き取り中：'+add;
     if(fin){commit(full);return;}
     // 数字だけで3つ揃ったら待たずに反映、それ以外は0.35秒止まったら反映
-    var add=full.slice(done.length),p=localParse(add.trim());
+    var p=localParse(add.trim());
     if(p&&p.type==='nums'&&p.nums.length>=3){commit(full);return;}
     clearTimeout(idle);idle=setTimeout(function(){commit(full);},350);
   };
-  recog.onstart=function(){done='';};
+  recog.onstart=function(){done='';vstate('聞いています（高速）');};
   recog.onerror=function(e){
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;micUI();vstate('');
       alert('マイクが使えません。\n\nアドレス欄の「ぁあ」→「Webサイトの設定」→ マイクを「許可」、\niPadの「設定」→「Siri」で音声入力がオンか確認してください。');}
   };
-  recog.onend=function(){if(listening&&recog){try{recog.start();}catch(x){}}};
+  recog.onend=function(){
+    if(!(listening&&recog))return;
+    vstate('再開中…');
+    try{recog.start();}catch(x){setTimeout(function(){if(listening&&recog){try{recog.start();}catch(y){}}},150);}
+  };
   try{recog.start();listening=true;micUI();vstate('聞いています（高速）');}catch(x){listening=false;micUI();}
 }
 function startWave(){
@@ -1249,7 +1274,7 @@ function onAudio(ev){
   var d=new Float32Array(ev.inputBuffer.getChannelData(0));
   var sum=0;for(var i=0;i<d.length;i++)sum+=d[i]*d[i];
   var rms=Math.sqrt(sum/d.length),ms=d.length/AC.sampleRate*1000;
-  var th=Math.max(0.012,noise*3);
+  var th=Math.max(0.006,noise*2.2);
   var loud=rms>th;
   $('lvl').style.width=Math.min(100,rms/0.15*100)+'%';
   if(!inSpeech){
@@ -1262,7 +1287,7 @@ function onAudio(ev){
   if(loud){silentMs=0;speechMs+=ms;}else silentMs+=ms;
   if(silentMs>=500||segMs>=12000){
     var buf=segBuf;inSpeech=false;segBuf=[];preBuf=[];
-    if(speechMs>=250)sendAudio(buf,AC.sampleRate);
+    if(speechMs>=150)sendAudio(buf,AC.sampleRate);
   }
 }
 // 16kHz・モノラルのWAVにする
