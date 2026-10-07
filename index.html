@@ -392,6 +392,11 @@ dialog a{color:var(--accent)}
   <div id="keyState" style="font-size:14px"></div>
   <label>Gemini APIキー（変更するときだけ入力）</label>
   <input id="setKey" type="password" autocomplete="off" placeholder="AIza…">
+  <label>音声入力の方式</label>
+  <select id="setMode" style="width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff">
+    <option value="fast">高速：端末の音声認識（数字や「出血」はすぐ反映、長い文だけGemini）</option>
+    <option value="wave">高精度：音声（波形）をそのままGeminiで解析（少し待つ）</option>
+  </select>
   <label>Geminiのモデル名</label>
   <input id="setModel">
   <span id="setExamWrap"><label>検査者（「、」区切り）</label>
@@ -962,7 +967,8 @@ function renderDiagram(){
 
 /* ───────── サーバー呼び出し ───────── */
 /* ───────── Gemini（このiPadに保存したキーで直接呼ぶ） ───────── */
-var GEM_DEFAULT='gemini-3.5-flash';
+var GEM_DEFAULT='gemini-3.5-flash-lite';
+function voiceMode(){return lsGet('voiceMode')||'fast';}
 function lsGet(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 function gemKey(){return lsGet('gemKey');}
@@ -1011,7 +1017,14 @@ function gemCall(parts){
   var key=gemKey();
   if(!key)return Promise.reject(new Error('右上の「設定」でGeminiのAPIキーを入れてください'));
   var body={systemInstruction:{parts:[{text:GEM_SYS}]},contents:[{role:'user',parts:parts}],
-    generationConfig:{responseMimeType:'application/json',responseSchema:GEM_SCHEMA}};
+    generationConfig:{responseMimeType:'application/json',responseSchema:GEM_SCHEMA,thinkingConfig:{thinkingLevel:'minimal'}}};
+  if(window._noThink===false)delete body.generationConfig.thinkingConfig;
+  return gemFetch(key,body).catch(function(e){
+    if(window._noThink!==false&&/thinking/i.test(errMsg(e))){window._noThink=false;delete body.generationConfig.thinkingConfig;return gemFetch(key,body);}
+    throw e;
+  });
+}
+function gemFetch(key,body){
   return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(gemModel())+':generateContent',
     {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)})
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});},function(){throw new Error('通信できませんでした');})
@@ -1097,6 +1110,27 @@ function flushDict(){
 var AC=null,micStream=null,proc=null,inSpeech=false,segBuf=[],preBuf=[],silentMs=0,speechMs=0,segMs=0,noise=0.01,pending=0;
 function vstate(t){$('vstate').textContent=t;}
 function startMic(){
+  if(voiceMode()==='fast'){startFast();return;}
+  startWave();
+}
+function startFast(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('この端末では高速モードが使えないため、高精度モードで始めます');startWave();return;}
+  recog=new SR();recog.lang='ja-JP';recog.continuous=true;recog.interimResults=true;
+  recog.onresult=function(e){
+    for(var i=e.resultIndex;i<e.results.length;i++){
+      var r=e.results[i],tx=r[0].transcript;
+      if(r.isFinal){$('heard').textContent='「'+tx+'」';handleUtterance(tx);}else{$('heard').textContent='聞き取り中：'+tx;}
+    }
+  };
+  recog.onerror=function(e){
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;micUI();vstate('');
+      alert('マイクが使えません。\n\nアドレス欄の「ぁあ」→「Webサイトの設定」→ マイクを「許可」、\niPadの「設定」→「Siri」で音声入力がオンか確認してください。');}
+  };
+  recog.onend=function(){if(listening&&recog){try{recog.start();}catch(x){}}};
+  try{recog.start();listening=true;micUI();vstate('聞いています（高速）');}catch(x){listening=false;micUI();}
+}
+function startWave(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert('このブラウザではマイクが使えません。iPadはSafari、パソコンはChromeで開いてください。');return;}
   if(!gemKey()){toast('右上の「設定」でGeminiのAPIキーを入れてください');openSettings();return;}
   var Ctx=window.AudioContext||window.webkitAudioContext;
@@ -1129,7 +1163,7 @@ function onAudio(ev){
   }
   segBuf.push(d);segMs+=ms;
   if(loud){silentMs=0;speechMs+=ms;}else silentMs+=ms;
-  if(silentMs>=750||segMs>=12000){
+  if(silentMs>=500||segMs>=12000){
     var buf=segBuf;inSpeech=false;segBuf=[];preBuf=[];
     if(speechMs>=250)sendAudio(buf,AC.sampleRate);
   }
@@ -1171,6 +1205,7 @@ function sendAudio(chunks,rate){
 }
 function stopMic(){
   listening=false;
+  if(recog){try{recog.onend=null;recog.stop();}catch(x){}recog=null;}
   try{if(proc){proc.disconnect();proc.onaudioprocess=null;}}catch(x){}
   try{if(micStream)micStream.getTracks().forEach(function(t){t.stop();});}catch(x){}
   try{if(AC)AC.close();}catch(x){}
@@ -1310,12 +1345,13 @@ function applySettings(s){
 }
 function openSettings(){
   $('keyState').innerHTML=gemKey()?'APIキー：<b style="color:#2f8f75">このiPadに設定済み</b>':'APIキー：<b style="color:#e5484d">未設定</b>（Google AI Studioで作ったキーを入れてください）';
-  $('setKey').value='';$('setModel').value=gemModel();
+  $('setKey').value='';$('setModel').value=gemModel();$('setMode').value=voiceMode();
   $('dlgSet').showModal();
 }
 function saveSettingsUI(){
   var k=$('setKey').value.trim();if(k)lsSet('gemKey',k);
   var m=$('setModel').value.trim();if(m)lsSet('gemModel',m);
+  lsSet('voiceMode',$('setMode').value);if(listening){stopMic();}
   $('setKey').value='';openSettings();toast('設定を保存しました（このiPadだけに保存）');
 }
 function openHist(){$('dlgHist').showModal();$('histQ').value=$('pid').value.trim();searchHist();}
