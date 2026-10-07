@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev9・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev10・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -263,6 +263,7 @@ dialog a{color:var(--accent)}
     <div class="now">
       <button class="mic" id="mic">● 音声入力 開始</button>
       <span class="seg vmode"><button data-vm="fast">その場で入力</button><button data-vm="batch">まとめて録音</button></span>
+      <button class="tbtn" id="bopVoiceToggle" aria-pressed="false">出血入力に切替</button>
       <span class="lvl"><i id="lvl"></i></span><span class="vstate" id="vstate"></span>
       <div class="pos" id="pos"></div>
       <div class="heard" id="heard">「右上7番 頬側 3 2 4」「出血」「左下6番 動揺1」のように話してください。</div>
@@ -924,9 +925,12 @@ function renderPos(){
     var t=curTooth();
     txt=t!=null?('現在：'+toothLabel(t)+'（'+(S.tab==='mob'?'動揺度':'分岐部')+'）'):'現在：最後まで入力しました';
   }
+  if(bopVoice.on)txt+='　【出血入力中・終了は「数値入力」】';
   if(S.plus10)txt+='　＋10';
   if(S.bulk)txt+='　一括';
   $('pos').textContent=txt;
+  $('bopVoiceToggle').textContent=bopVoice.on?'数値入力に戻る':'出血入力に切替';
+  $('bopVoiceToggle').setAttribute('aria-pressed',String(bopVoice.on));
 }
 function renderScore(){
   var s=summary();
@@ -1186,9 +1190,46 @@ function ctxForAI(){
   var ci=curInfo();
   return {tooth:ci?ci.tooth:(curTooth()||0),side:ci?(ci.side==='l'?'lingual':'buccal'):'buccal',mode:S.mode,tab:S.tab};
 }
+// 出血列挙は数値の解析より先に処理し、歯番をPDとして入力しない。
+var bopVoice={on:false,tooth:null,side:'b'};
+function handleBopVoice(text){
+  var t=String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}).replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);});
+  if(/^(数値入力|出血入力終了|出血終了|通常入力)[\s。]*$/.test(t)){
+    bopVoice.on=false;return ['数値入力に戻りました'];
+  }
+  var starting=/^(出血入力|出血モード|しゅっけつにゅうりょく)/.test(t);
+  if(!starting&&!bopVoice.on)return null;
+  if(starting)t=t.replace(/^(出血入力|出血モード|しゅっけつにゅうりょく)/,'');
+  var ci=curInfo(),tooth=starting?(ci&&ci.tooth):bopVoice.tooth,side=starting?(ci?ci.side:'b'):bopVoice.side;
+  var points=[],guard=0;
+  while(t.length&&guard++<200){
+    var m;
+    if((m=t.match(/^[\s、。,・：:と]+/))){t=t.slice(m[0].length);continue;}
+    if((m=t.match(/^(右上|左上|右下|左下)(?:の)?\s*([1-8一二三四五六七八]|いち|に|さん|よん|ご|ろく|なな|しち|はち)\s*番?/))){
+      tooth=CP_JAW[m[1]]*10+(/^\d$/.test(m[2])?+m[2]:CP_NUM[m[2]]);
+    }else if((m=t.match(/^(頬側|唇側|外側|きょうそく)/))){side='b';
+    }else if((m=t.match(/^(舌側|口蓋側|口蓋|内側|ぜっそく)/))){side='l';
+    }else if((m=t.match(/^(遠心|えんしん|円心|中央|ちゅうおう|真ん中|近心|きんしん|近親)/))){
+      if(!validTooth(tooth))return ['歯番を先に言ってください。出血点は入力していません'];
+      var name=/^(遠心|えんしん|円心)$/.test(m[1])?'distal':/^(近心|きんしん|近親)$/.test(m[1])?'mesial':'center';
+      var idx=nameToIdx(tooth,name);
+      if(S.teeth[tooth].missing||S.teeth[tooth].excluded||(S.mode===4&&side==='l'&&idx!==1))return ['計測対象外の部位です。出血点は入力していません'];
+      points.push({tooth:tooth,side:side,idx:idx});
+    }else{return ['出血点を読み取れませんでした。歯番・頬側か舌側・部位を言い直してください'];}
+    t=t.slice(m[0].length);
+  }
+  if(t.length)return ['長すぎるため出血点は入力していません'];
+  if(points.length)snap();
+  bopVoice={on:true,tooth:tooth,side:side};
+  points.forEach(function(p){S.teeth[p.tooth].bop[p.side][p.idx]=true;});
+  playInputClick();
+  return points.length?points.map(function(p){return toothLabel(p.tooth)+' '+sideLabel(p.tooth,p.side)+' '+idxName(p.tooth,p.idx,p.side)+' 出血';}):['出血入力中。歯番と部位を話してください（終了は「数値入力」）'];
+}
 function handleUtterance(text){
   text=String(text||'').trim();if(!text)return Promise.resolve();
   $('heard').textContent='「'+text+'」';
+  var bn=handleBopVoice(text);
+  if(bn){render();addLog('「'+text+'」→ '+bn.join('、'),'ok');return Promise.resolve();}
   var p=localParse(text);
   if(p){
     var notes=applyLocal(p);render();
@@ -1362,7 +1403,7 @@ function sendAudio(chunks,rate){
   queue=queue.catch(function(){return;}).then(function(){
     return gemCall([{text:ctxText(ctxForAI())+'\n次の音声を聞き取り、transcript に聞き取った日本語を、actions に検査の指示を入れてください。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}]).then(function(res){
-      var notes=applyActions(res&&res.actions,res&&res.transcript||'');render();
+      var notes=handleBopVoice(res&&res.transcript||'')||applyActions(res&&res.actions,res&&res.transcript||'');render();
       $('heard').textContent='「'+(res.transcript||'')+'」';
       line.className=notes.length?'ok':'ng';
       line.textContent='🎤「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.join('、'):'検査の指示として読み取れませんでした');
@@ -1431,7 +1472,7 @@ function cutBatch(){
       '「出血」「排膿」は直前の数字の部位につく。言い直し（「違う」「訂正」「じゃなくて」）は直したほうだけにする。雑談や患者への声かけは無視する。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}],{full:true}).then(function(res){
       $('heard').textContent='「'+(res&&res.transcript||'聞き取れず')+'」';
-      var notes=applyActions(res&&res.actions,res&&res.transcript||'');render();
+      var notes=handleBopVoice(res&&res.transcript||'')||applyActions(res&&res.actions,res&&res.transcript||'');render();
       bLastResult=notes.length?'解析完了：'+notes.length+'件入力':'解析は返りましたが、入力できる検査指示がありません。下の結果を確認してください';
       line.className=notes.length?'ok':'ng';
       line.textContent='🎙「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.length+'件入力：'+notes.join('、'):'検査の指示として読み取れませんでした');
@@ -1613,11 +1654,13 @@ function finishExam(){
 function Utilities_uuid(){return 'k'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 // 検査の入力だけをすべて消す（音声入力は続けたまま・「元に戻す」で戻せる）
 function allClear(){
+  bopVoice.on=false;
   if(!confirm('歯周検査の入力をすべて消しますか？\n（消したあとでも「元に戻す」で戻せます）'))return;
   snap();resetTeeth();S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.plus10=false;S.bulk=false;skipMissing(1);S.tcur=TOOTH_ORDER.indexOf(17);
   render();toast('すべて消しました');
 }
 function newExam(){
+  bopVoice.on=false;
   stopMic();S.karteRecId=null;K={pid:'',plan:DEFAULT_PLAN.slice(),records:[],editId:null};
   resetTeeth();HIST=[];S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.examId=null;S.plus10=false;S.bulk=false;skipMissing(1);S.tcur=TOOTH_ORDER.indexOf(17);
   $('pid').value='';$('pname').value='';$('pidShow').textContent='未選択';$('pnameShow').textContent='';S.date=today();$('pdate').value=S.date;
@@ -1926,6 +1969,7 @@ function bind(){
     clearTimeout(dictTimer);dictTimer=setTimeout(flushDict,1600);
   });
   $('dict').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing){e.preventDefault();flushDict();}});
+  $('bopVoiceToggle').addEventListener('click',function(){enqueue(bopVoice.on?'数値入力':'出血入力');});
   $('typedGo').addEventListener('click',function(){enqueue($('typed').value);$('typed').value='';});
   $('typed').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing){enqueue($('typed').value);$('typed').value='';}});
   $('pdate').addEventListener('change',function(){S.date=$('pdate').value;render();});
