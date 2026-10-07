@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.2・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -1281,6 +1281,7 @@ function startFast(){
   };
   recog.onstart=function(){done='';vstate('聞いています（高速）');};
   recog.onerror=function(e){
+    if(e.error&&e.error!=='no-speech'&&e.error!=='aborted')vstate('聞き取りエラー：'+({network:'通信できません','audio-capture':'マイクが使えません'}[e.error]||e.error));
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;micUI();vstate('');
       alert('マイクが使えません。\n\nアドレス欄の「ぁあ」→「Webサイトの設定」→ マイクを「許可」、\niPadの「設定」→「Siri」で音声入力がオンか確認してください。');}
   };
@@ -1373,6 +1374,9 @@ function startBatch(){
   batchOn=true;bBuf=[];bMs=0;bSilent=0;bSpeech=0;bTotal=0;
   startWave();
   clearInterval(bTimer);bTimer=setInterval(batchState,500);
+  setTimeout(function(){if(batchOn&&listening&&bTotal===0){
+    try{if(AC&&AC.resume)AC.resume();}catch(x){}
+    vstate('マイクの音が届いていません。もう一度「録音開始」を押してください');}},2000);
 }
 function upcomingSlots(max){
   var c={g:S.cur.g,t:S.cur.t},out=[],first=true;
@@ -1401,10 +1405,12 @@ function onBatch(d){
   if(loud){bSilent=0;bSpeech+=ms;}else bSilent+=ms;
   if((bMs>=90000&&bSilent>=400)||bMs>=150000)cutBatch();
 }
+function bMsAll(buf,rate){var n=0;buf.forEach(function(c){n+=c.length;});return n/rate*1000;}
 function cutBatch(){
   var buf=bBuf,sp=bSpeech,rate=AC?AC.sampleRate:48000;
   bBuf=[];bMs=0;bSpeech=0;
-  if(sp<300||!buf.length)return;
+  if(!buf.length){addLog('🎙 録音が空でした（マイクの音が届いていません）','ng');return;}
+  if(bMsAll(buf,rate)<800){return;}
   var b64=toWav(buf,rate);
   pending++;batchState();
   var line=addLog('🎙 録音を解析中…（終わるまで少しお待ちください）','ai');
