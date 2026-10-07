@@ -33,6 +33,7 @@ input,select,textarea{font-size:16px;font-family:inherit}
 .spacer{flex:1}
 .tbtn{border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:8px 15px;font-size:14px}
 .tbtn:active{background:var(--key-hi)}
+.tbtn.clr{color:#d0587a;border-color:#f3b7c8;background:#fff5f8;font-weight:700}
 .mic{border:0;border-radius:999px;padding:12px 22px;font-size:16px;font-weight:700;background:var(--mint);color:#fff;min-width:170px;box-shadow:0 4px 12px rgba(79,184,155,.35)}
 .mic.on{background:var(--red);box-shadow:0 4px 12px rgba(229,72,77,.35);animation:pulse 1.4s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}70%{box-shadow:0 0 0 14px rgba(229,72,77,0)}100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}}
@@ -239,7 +240,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.4（高速モード）・お試し版：患者データは入れません・保存しません</span>
+      <span class="trial">Ver 1.5・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -252,6 +253,7 @@ dialog a{color:var(--accent)}
       <label>方式<span class="seg"><button id="m6" class="on">6点法</button><button id="m4">4点法</button></span></label>
       <span class="spacer"></span>
       <button class="tbtn" id="btnHist">履歴</button>
+      <button class="tbtn clr" id="btnClear">全クリア</button>
       <button class="tbtn" id="btnPrint">印刷・PDF</button>
       <button class="tbtn" id="btnSet">設定</button>
     </div>
@@ -1368,6 +1370,12 @@ function finishExam(){
   saveExam().then(function(){newExam();}).catch(function(){});
 }
 function Utilities_uuid(){return 'k'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+// 検査の入力だけをすべて消す（音声入力は続けたまま・「元に戻す」で戻せる）
+function allClear(){
+  if(!confirm('歯周検査の入力をすべて消しますか？\n（消したあとでも「元に戻す」で戻せます）'))return;
+  snap();resetTeeth();S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.plus10=false;S.bulk=false;
+  render();toast('すべて消しました');
+}
 function newExam(){
   stopMic();S.karteRecId=null;K={pid:'',plan:DEFAULT_PLAN.slice(),records:[],editId:null};
   resetTeeth();HIST=[];S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.examId=null;S.plus10=false;S.bulk=false;
@@ -1655,6 +1663,7 @@ function bind(){
   });
   $('m6').addEventListener('click',function(){S.mode=6;render();});
   $('m4').addEventListener('click',function(){S.mode=4;S.cur.s=0;render();});
+  $('btnClear').addEventListener('click',allClear);
   $('mic').addEventListener('click',function(){
     if(dictOn){stopDict();return;}
     listening?stopMic():startMic();
