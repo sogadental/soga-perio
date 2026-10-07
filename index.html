@@ -92,6 +92,8 @@ table.chart td.tno small.f{right:3px;color:var(--amber)}
 table.chart tr.sep td{height:5px;border:0;background:#f6d9de}
 td.site.na{background:repeating-linear-gradient(45deg,#fff,#fff 4px,#faf3f3 4px,#faf3f3 8px);cursor:default}
 td.site.missing{background:#f6f2f2}
+td.site.chk{background:#fff4c2;outline:2px dashed #e0a800;outline-offset:-3px}
+td.site.chk span.v:empty::after{content:'?';color:#c58a00;font-weight:700}
 td.site.deep span.v{color:var(--red);font-weight:700}
 td.site.pus{background:var(--amber-soft)}
 td.site.plq{background:#efeafd}
@@ -241,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.9・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.1・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -402,6 +404,8 @@ dialog a{color:var(--accent)}
     <option value="wave">高精度：音声（波形）をそのままGeminiで解析（少し待つ）</option>
     <option value="batch">まとめて録音：全部録音してGeminiでまとめて解析（約1分半ごとに解析）</option>
   </select>
+  <label>まとめて録音の解析に使うモデル名（正確さ重視）</label>
+  <input id="setBatchModel" style="width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px" placeholder="gemini-3.5-flash">
   <label>Geminiのモデル名</label>
   <input id="setModel">
   <span id="setExamWrap"><label>検査者（「、」区切り）</label>
@@ -486,7 +490,7 @@ function today(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffse
 
 var S={mode:6,tab:'pd',teeth:{},cur:{g:0,t:0,s:0},tcur:0,last:null,plus10:false,bulk:false,
   patientId:'',patientName:'',date:today(),examiner:'',examId:null};
-function resetTeeth(){S.teeth={};UPPER.concat(LOWER).forEach(function(t){S.teeth[t]=newTooth();});}
+function resetTeeth(){S.teeth={};S.chk={};UPPER.concat(LOWER).forEach(function(t){S.teeth[t]=newTooth();});}
 resetTeeth();
 
 /* ───────── 入力位置（カーソル） ───────── */
@@ -553,10 +557,10 @@ function tStep(dir){
 
 /* ───────── 元に戻す ───────── */
 var HIST=[];
-function snap(){HIST.push(JSON.stringify({teeth:S.teeth,cur:S.cur,tcur:S.tcur,last:S.last}));if(HIST.length>200)HIST.shift();}
+function snap(){HIST.push(JSON.stringify({teeth:S.teeth,cur:S.cur,tcur:S.tcur,last:S.last,chk:S.chk||{}}));if(HIST.length>200)HIST.shift();}
 function undo(){
   var h=HIST.pop();if(!h){toast('これ以上戻せません');return false;}
-  var o=JSON.parse(h);S.teeth=o.teeth;S.cur=o.cur;S.tcur=o.tcur;S.last=o.last;return true;
+  var o=JSON.parse(h);S.teeth=o.teeth;S.cur=o.cur;S.tcur=o.tcur;S.last=o.last;S.chk=o.chk||{};return true;
 }
 
 /* ───────── 値の書き込み ───────── */
@@ -568,7 +572,8 @@ function putSite(field,v){
   var ci=curInfo();if(!ci){toast('最後まで入力しました');return false;}
   var t=S.teeth[ci.tooth];
   if(field==='pl')t.pl[ci.side][ci.idx]=!!v;
-  else t[field][ci.side][ci.idx]=v;
+  else if(v!=null&&v<0){S.chk=S.chk||{};S.chk[ci.tooth+ci.side+ci.idx]=1;}
+  else{t[field][ci.side][ci.idx]=v;if(S.chk)delete S.chk[ci.tooth+ci.side+ci.idx];}
   rememberLast(ci.tooth,ci.side,ci.idx);
   stepFwd();
   return true;
@@ -759,9 +764,9 @@ function applyActions(actions){
     if(k==='pocket'||k==='recession'){
       if(validTooth(a.tooth)){moveTo(a.tooth,sideCode(a.side));S.teeth[a.tooth].missing=false;}
       else if(sideCode(a.side)&&curInfo()){moveTo(curInfo().tooth,sideCode(a.side));}
-      var vals=(a.values||[]).filter(function(v){return v>=0&&v<=20;});
+      var vals=(a.values||[]).map(function(v){return v<0?-1:v;}).filter(function(v){return v<=20;});
       fillNumbers(k==='pocket'?'pd':'rec',vals);
-      notes.push((k==='pocket'?'ポケット ':'退縮 ')+vals.join('・'));
+      notes.push((validTooth(a.tooth)?toothLabel(a.tooth)+(a.side==='lingual'?'舌側':a.side==='buccal'?'頬側':'')+' ':'')+(k==='pocket'?'':'退縮 ')+vals.map(function(v){return v<0?'？':v;}).join('・'));
     }else if(FLAGMAP[k]){
       r=resolveSites(a);if(!r)return;
       r.idxs.forEach(function(i){S.teeth[r.tooth][FLAGMAP[k]][r.side][i]=true;});
@@ -796,12 +801,27 @@ function applyActions(actions){
   });
   return notes;
 }
+var lastNum={at:0,pos:null};
+function samePos(a,b){return a&&b&&a.g===b.g&&a.t===b.t&&a.s===b.s;}
+function alignByPause(){
+  var ci=curInfo();if(!ci||!SITE_TABS[S.tab]||S.tab==='pl')return '';
+  var gap=Date.now()-lastNum.at;
+  if(!(lastNum.at&&gap>1200&&gap<30000&&samePos(lastNum.pos,S.cur)&&S.cur.s>0))return '';
+  var tooth=ci.tooth,side=ci.side,ord=siteOrder(GROUPS[S.cur.g]);
+  S.chk=S.chk||{};
+  for(var k=S.cur.s;k<ord.length;k++)S.chk[tooth+side+ord[k]]=1;
+  S.cur.s=ord.length-1;stepFwd();
+  return toothLabel(tooth)+(side==='l'?'舌側':'頬側')+'は数字が足りないので「？」にしました';
+}
+function markNum(){lastNum={at:Date.now(),pos:{g:S.cur.g,t:S.cur.t,s:S.cur.s}};}
 function applyLocal(p){
   if(p.type==='undo'){return undo()?['元に戻しました']:[];}
   snap();
   if(p.type==='nums'){
+    var al=(S.tab==='mob'||S.tab==='furc')?'':alignByPause();
+    if(al){fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);markNum();toast(al);return [p.nums.join('・'),'（'+al+'）'];}
     if(S.tab==='mob'||S.tab==='furc'){p.nums.forEach(function(n){putTooth(S.tab==='mob'?'mob':'furc',Math.min(3,n));});}
-    else fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);
+    else{fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);markNum();}
     return [p.nums.join('・')];
   }
   if(p.type==='flag'){
@@ -852,6 +872,7 @@ function siteCell(tooth,side,idx,mid){
   if(t.pus[side][idx])cls.push('pus');
   if(t.calc[side][idx])cls.push('calc');
   if(t.pl[side][idx])cls.push(S.tab==='pl'?'plq':'plmark');
+  if(v==null&&S.chk&&S.chk[tooth+side+idx])cls.push('chk');
   return '<td class="'+cls.join(' ')+'" data-t="'+tooth+'" data-s="'+side+'" data-i="'+idx+'"><span class="v">'+(v==null?'':v)+'</span></td>';
 }
 function siteRow(teeth,side,label){
@@ -1051,6 +1072,7 @@ function renderDiagram(){
 /* ───────── Gemini（このiPadに保存したキーで直接呼ぶ） ───────── */
 var GEM_DEFAULT='gemini-3.5-flash-lite';
 if(lsGet('gemModel')==='gemini-3.5-flash'&&!lsGet('mig1')){lsSet('gemModel','gemini-3.5-flash-lite');lsSet('mig1','1');}
+function batchModel(){return lsGet('batchModel')||'gemini-3.5-flash';}
 function voiceMode(){return lsGet('voiceMode')||'fast';}
 function lsGet(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
@@ -1092,23 +1114,25 @@ var GEM_SCHEMA={type:'OBJECT',properties:{transcript:{type:'STRING'},actions:{ty
   kind:{type:'STRING',enum:['pocket','recession','bop','plaque','pus','calculus','clear','primary','mobility','furcation','missing','present','move','undo','skip','none']},
   tooth:{type:'INTEGER'},side:{type:'STRING',enum:['buccal','lingual','none']},
   sites:{type:'ARRAY',items:{type:'STRING',enum:['mesial','center','distal','all','first','second','third','last']}},
-  values:{type:'ARRAY',items:{type:'INTEGER'}},value:{type:'INTEGER'}},required:['kind']}}},required:['actions']};
+  values:{type:'ARRAY',items:{type:'INTEGER'}},value:{type:'INTEGER'}},required:['kind'],propertyOrdering:['kind','tooth','side','sites','values','value']}}},required:['actions'],propertyOrdering:['transcript','actions']};
 function ctxText(ctx){
   return '今の入力位置：歯 '+(ctx&&ctx.tooth||'不明')+'、面 '+(ctx&&ctx.side==='lingual'?'口蓋側/舌側':'頬側')+'、方式 '+(ctx&&ctx.mode||6)+'点法';
 }
 function gemCall(parts,opt){
   var key=gemKey();
   if(!key)return Promise.reject(new Error('右上の「設定」でGeminiのAPIキーを入れてください'));
+  var full=!!(opt&&opt.full),model=full?batchModel():gemModel();
   var body={systemInstruction:{parts:[{text:GEM_SYS}]},contents:[{role:'user',parts:parts}],
-    generationConfig:{responseMimeType:'application/json',responseSchema:GEM_SCHEMA,thinkingConfig:{thinkingLevel:'minimal'}}};
-  if(window._noThink===false||(opt&&opt.full))delete body.generationConfig.thinkingConfig;
-  return gemFetch(key,body).catch(function(e){
-    if(window._noThink!==false&&/thinking/i.test(errMsg(e))){window._noThink=false;delete body.generationConfig.thinkingConfig;return gemFetch(key,body);}
+    generationConfig:{responseMimeType:'application/json',responseSchema:GEM_SCHEMA,thinkingConfig:{thinkingLevel:full?'high':'minimal'}}};
+  if(full)body.generationConfig.temperature=0;
+  if(window._noThink===false)delete body.generationConfig.thinkingConfig;
+  return gemFetch(key,body,model).catch(function(e){
+    if(window._noThink!==false&&/thinking/i.test(errMsg(e))){window._noThink=false;delete body.generationConfig.thinkingConfig;return gemFetch(key,body,model);}
     throw e;
   });
 }
-function gemFetch(key,body){
-  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(gemModel())+':generateContent',
+function gemFetch(key,body,model){
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model||gemModel())+':generateContent',
     {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)})
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});},function(){throw new Error('通信できませんでした');})
     .then(function(x){
@@ -1342,6 +1366,18 @@ function startBatch(){
   startWave();
   clearInterval(bTimer);bTimer=setInterval(batchState,500);
 }
+function upcomingSlots(max){
+  var c={g:S.cur.g,t:S.cur.t},out=[],first=true;
+  while(c.g<4&&out.length<max){
+    var g=GROUPS[c.g],tooth=g.teeth[c.t];
+    if(!S.teeth[tooth].missing){
+      var n=siteOrder(g).length,rest=first?n-S.cur.s:n;
+      out.push(tooth+(g.side==='b'?'頬側':(g.jaw==='U'?'口蓋側':'舌側'))+'（'+rest+'つ）');
+    }
+    first=false;c.t++;if(c.t>=16){c.t=0;c.g++;}
+  }
+  return out.join('→');
+}
 function batchState(){
   if(!batchOn)return;
   var sec=Math.floor(bTotal/1000);
@@ -1366,8 +1402,14 @@ function cutBatch(){
   var line=addLog('🎙 録音を解析中…（終わるまで少しお待ちください）','ai');
   queue=queue.then(function(){
     return gemCall([{text:ctxText(ctxForAI())+'\nこれは歯周検査の読み上げを録音した音声です（全体、または前の録音の続き）。'+
-      '最初から最後まで聞き取り、transcript に聞き取った日本語の全文を、actions に話された順ですべての指示を漏れなく入れてください。'+
-      '歯や面の指定がない数字の並びは、今の入力位置から順に入るポケット深さとして pocket にしてください。言い直し（「違う」「訂正」など）は直したほうだけにしてください。'},
+      '手順：(1) まず音声を最初から最後まで注意深く聞き、transcript に一言も省かず書き起こす。数字は算用数字で1つずつ空白で区切る（例：3 2 4）。'+
+      '(2) 次に transcript をもとに、話された順ですべての指示を漏れなく actions に入れる。'+
+      '読み上げの特徴：ポケット深さは1〜10mm程度の1桁の数字を、1歯の片面ごとに3つずつ（6点法）続けて読むことが多い。歯・面の指定がない数字の並びは、今の入力位置から順に入るポケット深さとして pocket にまとめてよい。'+
+      '数字の個数は入力位置がずれる原因になるので、聞き取りにくい数字も省かずに一番近い数字で必ず入れる。'+
+      'この読み上げの入力順（今の位置から。欠損歯は除いてある）：'+upcomingSlots(64)+'。'+
+      'ポケット深さは上の順に1面ずつ pocket に分け、tooth（FDI番号）と side を必ず付ける。区切りは数字の個数と、話の間（ポーズ）・リズムで判断する。'+
+      'ある面で数字が足りないと判断したら（例：3つのはずが2つで間があいた）、聞き取れなかった位置に -1 を入れてその面の個数にそろえ、次の面にずらさない。'+
+      '「出血」「排膿」は直前の数字の部位につく。言い直し（「違う」「訂正」「じゃなくて」）は直したほうだけにする。雑談や患者への声かけは無視する。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}],{full:true}).then(function(res){
       var notes=applyActions(res&&res.actions);render();
       line.className=notes.length?'ok':'ng';
@@ -1525,12 +1567,13 @@ function applySettings(s){
 }
 function openSettings(){
   $('keyState').innerHTML=gemKey()?'APIキー：<b style="color:#2f8f75">このiPadに設定済み</b>':'APIキー：<b style="color:#e5484d">未設定</b>（Google AI Studioで作ったキーを入れてください）';
-  $('setKey').value='';$('setModel').value=gemModel();$('setMode').value=voiceMode();
+  $('setKey').value='';$('setModel').value=gemModel();$('setMode').value=voiceMode();$('setBatchModel').value=batchModel();
   $('dlgSet').showModal();
 }
 function saveSettingsUI(){
   var k=$('setKey').value.trim();if(k)lsSet('gemKey',k);
   var m=$('setModel').value.trim();if(m)lsSet('gemModel',m);
+  var bm=$('setBatchModel').value.trim();if(bm)lsSet('batchModel',bm);
   lsSet('voiceMode',$('setMode').value);if(listening){stopMic();}
   $('setKey').value='';openSettings();toast('設定を保存しました（このiPadだけに保存）');
 }
