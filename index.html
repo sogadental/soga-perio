@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev6・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev7・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -399,6 +399,7 @@ dialog a{color:var(--accent)}
   <label>Gemini APIキー（変更するときだけ入力）</label>
   <input id="setKey" type="password" autocomplete="off" placeholder="AIza…">
   <label><input id="setClick" type="checkbox"> 入力完了・移動・取り消しのクリック音</label>
+  <label><input id="setEights" type="checkbox"> 上下左右の8番も計測する</label>
   <label>音声入力の方式</label>
   <select id="setMode" style="width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff">
     <option value="fast">高速：端末の音声認識（数字や「出血」はすぐ反映、長い文だけGemini）</option>
@@ -491,8 +492,10 @@ function today(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffse
 
 var S={mode:6,tab:'pd',teeth:{},cur:{g:0,t:0,s:0},tcur:0,last:null,plus10:false,bulk:false,
   patientId:'',patientName:'',date:today(),examiner:'',examId:null};
-function resetTeeth(){S.teeth={};S.chk={};UPPER.concat(LOWER).forEach(function(t){S.teeth[t]=newTooth();});}
+function resetTeeth(includeEights){S.teeth={};S.chk={};UPPER.concat(LOWER).forEach(function(t){S.teeth[t]=newTooth();S.teeth[t].excluded=!includeEights&&t%10===8;});}
+function notMeasured(t){return !!(t.missing||t.excluded);}
 resetTeeth();
+skipMissing(1);S.tcur=TOOTH_ORDER.indexOf(17);
 
 /* ───────── 入力位置（カーソル） ───────── */
 function siteOrder(g){
@@ -506,7 +509,7 @@ function curInfo(){
   return {g:g,tooth:tooth,side:g.side,idx:ord[S.cur.s]};
 }
 function skipMissing(dir){
-  while(S.cur.g>=0&&S.cur.g<4&&S.teeth[GROUPS[S.cur.g].teeth[S.cur.t]].missing){
+  while(S.cur.g>=0&&S.cur.g<4&&notMeasured(S.teeth[GROUPS[S.cur.g].teeth[S.cur.t]])){
     if(dir>=0){S.cur.t++;S.cur.s=0;if(S.cur.t>=16){S.cur.t=0;S.cur.g++;}}
     else{S.cur.t--;if(S.cur.t<0){S.cur.g--;if(S.cur.g<0){S.cur={g:0,t:0,s:0};return skipMissing(1);}S.cur.t=15;}
       S.cur.s=siteOrder(GROUPS[S.cur.g]).length-1;}
@@ -538,6 +541,7 @@ function groupIndex(tooth,side){
 function moveTo(tooth,side){
   if(!validTooth(tooth))return;
   if(!side){var ci=curInfo();side=(ci&&jawOf(ci.tooth)===jawOf(tooth))?ci.side:'b';}
+  if(S.teeth[tooth])S.teeth[tooth].excluded=false;
   var gi=groupIndex(tooth,side);
   S.cur={g:gi,t:GROUPS[gi].teeth.indexOf(tooth),s:0};
   var tl=toothList();var k=tl.indexOf(tooth);if(k>=0)S.tcur=k;
@@ -551,7 +555,7 @@ function curTooth(){
 }
 function tStep(dir){
   var tl=toothList();var i=S.tcur;
-  do{i+=dir;}while(i>=0&&i<tl.length&&S.teeth[tl[i]].missing);
+  do{i+=dir;}while(i>=0&&i<tl.length&&notMeasured(S.teeth[tl[i]]));
   if(i<0)i=0;if(i>tl.length)i=tl.length;
   S.tcur=i;
 }
@@ -851,6 +855,7 @@ function summary(){
   UPPER.concat(LOWER).forEach(function(k){
     var t=S.teeth[k];if(t.missing)return;teeth++;
     if(t.mob>=1)mobile++;
+    if(t.excluded)return;
     ['b','l'].forEach(function(s){
       var idxs=(S.mode===4&&s==='l')?[1]:[0,1,2];
       idxs.forEach(function(i){
@@ -871,7 +876,7 @@ function siteCell(tooth,side,idx,mid){
   var t=S.teeth[tooth];var cls=['site'];if(mid)cls.push('mid');
   var na=S.mode===4&&side==='l'&&idx!==1;
   if(na){cls.push('na');return '<td class="'+cls.join(' ')+'"></td>';}
-  if(t.missing){cls.push('missing');return '<td class="'+cls.join(' ')+'" data-t="'+tooth+'" data-s="'+side+'" data-i="'+idx+'"></td>';}
+  if(notMeasured(t)){cls.push('missing');return '<td class="'+cls.join(' ')+'" data-t="'+tooth+'" data-s="'+side+'" data-i="'+idx+'"></td>';}
   var ci=curInfo();
   if(SITE_TABS[S.tab]&&ci&&ci.tooth===tooth&&ci.side===side&&ci.idx===idx)cls.push('cursor');
   var v=S.tab==='rec'?t.rec[side][idx]:t.pd[side][idx];
@@ -1005,7 +1010,7 @@ function panelSVG(teeth,jaw,side,y0){
   var segs=[],seg=[],marks='';
   teeth.forEach(function(tooth,k){
     var t=S.teeth[tooth];var cx=LM+k*TW+TW/2;var sh=toothShape(tooth%10,jaw);
-    if(t.missing){if(seg.length){segs.push(seg);seg=[];}return;}
+    if(notMeasured(t)){if(seg.length){segs.push(seg);seg=[];}return;}
     var p=toothPath(cx,cej,d,sh,t.primary);
     g+='<path d="'+p.body+'" fill="url(#rootg)"/>';
     g+='<path d="'+p.crown+'" fill="url(#enamel)"/>';
@@ -1381,7 +1386,7 @@ function upcomingSlots(max){
   var c={g:S.cur.g,t:S.cur.t},out=[],first=true;
   while(c.g<4&&out.length<max){
     var g=GROUPS[c.g],tooth=g.teeth[c.t];
-    if(!S.teeth[tooth].missing){
+    if(!notMeasured(S.teeth[tooth])){
       var n=siteOrder(g).length,rest=first?n-S.cur.s:n;
       out.push(tooth+(g.side==='b'?'頬側':(g.jaw==='U'?'口蓋側':'舌側'))+'（'+rest+'つ）');
     }
@@ -1550,12 +1555,12 @@ function Utilities_uuid(){return 'k'+Date.now().toString(36)+Math.random().toStr
 // 検査の入力だけをすべて消す（音声入力は続けたまま・「元に戻す」で戻せる）
 function allClear(){
   if(!confirm('歯周検査の入力をすべて消しますか？\n（消したあとでも「元に戻す」で戻せます）'))return;
-  snap();resetTeeth();S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.plus10=false;S.bulk=false;
+  snap();resetTeeth();S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.plus10=false;S.bulk=false;skipMissing(1);S.tcur=TOOTH_ORDER.indexOf(17);
   render();toast('すべて消しました');
 }
 function newExam(){
   stopMic();S.karteRecId=null;K={pid:'',plan:DEFAULT_PLAN.slice(),records:[],editId:null};
-  resetTeeth();HIST=[];S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.examId=null;S.plus10=false;S.bulk=false;
+  resetTeeth();HIST=[];S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.examId=null;S.plus10=false;S.bulk=false;skipMissing(1);S.tcur=TOOTH_ORDER.indexOf(17);
   $('pid').value='';$('pname').value='';$('pidShow').textContent='未選択';$('pnameShow').textContent='';S.date=today();$('pdate').value=S.date;
   resetKForm();renderKarte();render();
 }
@@ -1585,6 +1590,7 @@ function applySettings(s){
 function openSettings(){
   $('keyState').innerHTML=gemKey()?'APIキー：<b style="color:#2f8f75">このiPadに設定済み</b>':'APIキー：<b style="color:#e5484d">未設定</b>（Google AI Studioで作ったキーを入れてください）';
   $('setKey').value='';$('setModel').value=gemModel();$('setMode').value=voiceMode();$('setBatchModel').value=batchModel();
+  $('setEights').checked=[18,28,38,48].every(function(n){return !S.teeth[n].excluded;});
   $('setClick').checked=lsGet('clickSound')!=='off';
   $('dlgSet').showModal();
 }
@@ -1592,6 +1598,8 @@ function saveSettingsUI(){
   var k=$('setKey').value.trim();if(k)lsSet('gemKey',k);
   var m=$('setModel').value.trim();if(m)lsSet('gemModel',m);
   var bm=$('setBatchModel').value.trim();if(bm)lsSet('batchModel',bm);
+  [18,28,38,48].forEach(function(n){S.teeth[n].excluded=!$('setEights').checked;});
+  skipMissing(1);if(curTooth()!=null&&notMeasured(S.teeth[curTooth()]))tStep(1);render();
   lsSet('clickSound',$('setClick').checked?'on':'off');
   lsSet('voiceMode',$('setMode').value);if(listening){stopMic();}
   $('setKey').value='';openSettings();toast('設定を保存しました（このiPadだけに保存）');
@@ -1889,6 +1897,8 @@ function bind(){
 function init(){
   $('pdate').value=S.date;
   loadDraft();
+  [18,28,38,48].forEach(function(n){var t=S.teeth[n];if(t&&t.excluded==null)t.excluded=!['b','l'].some(function(side){return t.pd[side].some(function(v){return v!=null;});});});
+  skipMissing(1);if(curTooth()!=null&&notMeasured(S.teeth[curTooth()]))tStep(1);
   bind();
   bindKarte();
   bindPatient();
