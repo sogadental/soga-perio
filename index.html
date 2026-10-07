@@ -240,7 +240,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.5・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 1.6・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -612,8 +612,23 @@ function readingToNum(text){
 // よくある聞き間違いを直す（短い言葉だけ）
 var HOMO=[[/^(出欠|出決|出けつ|しゅっけつ|シュッケツ|出血あり|出血有り)$/,'出血'],[/^(背嚢|はいのう|ハイノウ|排膿あり)$/,'排膿'],
   [/^(史跡|歯跡|指石|しせき|シセキ|歯石あり)$/,'歯石'],[/^(結尊|欠尊|けっそん|ケッソン|欠損歯)$/,'欠損'],[/^(ぷらーく|プラークあり)$/,'プラーク']];
+// 数字の聞き間違い（同じ読みの漢字）→ 数字
+var HOMONUM=[['位置',1],['市',1],['壱',1],['荷',2],['煮',2],['似',2],['尼',2],['児',2],['産',3],['参',3],['惨',3],['山',3],['死',4],['詩',4],['氏',4],['子',4],['号',5],['後',5],['語',5],['碁',5],['午',5],['誤',5],['御',5],['呉',5],['碁',5],['録',6],['緑',6],['菜々',7],['奈々',7],['那奈',7],['蜂',8],['鉢',8],['急',9],['球',9],['救',9],['旧',9]];
+var HOMONUM_RE=new RegExp('^('+HOMONUM.map(function(x){return x[0];}).join('|')+')');
+function homoToNum(text){
+  var t=String(text||''),out='',k=0;
+  while(t.length&&k++<100){
+    var m=t.match(HOMONUM_RE);
+    if(m){for(var i=0;i<HOMONUM.length;i++)if(HOMONUM[i][0]===m[1]){out+=' '+HOMONUM[i][1]+' ';break;}t=t.slice(m[1].length);}
+    else{out+=t.charAt(0);t=t.slice(1);}
+  }
+  return out;
+}
 function localParse(text){
   text=readingToNum(text);
+  // 数字と聞き間違いの漢字だけでできていれば数字に直す（例：「3 2 号」→ 3 2 5）
+  var hz=homoToNum(text);
+  if(hz!==text&&/^[\s\d、。,.・十〇零一二三四五六七八九]+$/.test(hz.replace(/ミリ|みり|mm/gi,'')))text=hz;
   var w0=String(text).replace(/[\s、。,.・]/g,'');
   for(var hi=0;hi<HOMO.length;hi++){if(HOMO[hi][0].test(w0)){text=HOMO[hi][1];break;}}
   var t=normalize(text);
@@ -653,10 +668,12 @@ var CP_RULES=[
   [/^(歯石|史跡|しせき)(?:あり|有り)?/,function(m,st){st.flush();st.acts.push({kind:'calculus',tooth:st.tooth||0,side:st.side,sites:['last']});}],
   [/^(ぷらーく)(?:あり|有り)?/,function(m,st){st.flush();st.acts.push({kind:'plaque',tooth:st.tooth||0,side:st.side,sites:['last']});}],
   [/^(欠損|けっそん|結尊)/,function(m,st){st.flush();st.acts.push({kind:'missing',tooth:st.tooth||0});st.moved=false;}],
+  [/^\d\s*番/,function(m,st){st.bad=true;}],
   [/^§(\d+)/,function(m,st){st.nums.push(+m[1]);}],
   [/^10(?!\d)/,function(m,st){st.nums.push(10);}],
   [/^\d/,function(m,st){st.nums.push(+m[0]);}],
   [/^(いち|さん|よん|ろく|なな|しち|はち|きゅう|に|ご|し)/,function(m,st){st.nums.push(CP_NUM[m[1]]);}],
+  [HOMONUM_RE,function(m,st){for(var i=0;i<HOMONUM.length;i++)if(HOMONUM[i][0]===m[1]){st.nums.push(HOMONUM[i][1]);return;}}],
   [/^(みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)+/i,function(){}]
 ];
 function cpVal(x){var v={'〇':0,'零':0,'ぜろ':0,'一':1,'いち':1,'二':2,'に':2,'三':3,'さん':3}[x];return v!=null?v:+x;}
@@ -668,7 +685,7 @@ function compoundParse(text){
   while(t.length&&guard++<200){
     var hit=false;
     for(var i=0;i<CP_RULES.length;i++){var m=t.match(CP_RULES[i][0]);if(m&&m[0].length){CP_RULES[i][1](m,st);t=t.slice(m[0].length);hit=true;break;}}
-    if(!hit)return null;
+    if(!hit||st.bad)return null;
   }
   st.flush();
   if(st.moved)st.acts.push({kind:'move',tooth:st.tooth,side:st.side});
