@@ -968,6 +968,7 @@ function renderDiagram(){
 /* ───────── サーバー呼び出し ───────── */
 /* ───────── Gemini（このiPadに保存したキーで直接呼ぶ） ───────── */
 var GEM_DEFAULT='gemini-3.5-flash-lite';
+if(lsGet('gemModel')==='gemini-3.5-flash'&&!lsGet('mig1')){lsSet('gemModel','gemini-3.5-flash-lite');lsSet('mig1','1');}
 function voiceMode(){return lsGet('voiceMode')||'fast';}
 function lsGet(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
