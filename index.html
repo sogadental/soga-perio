@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.1・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.2・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -699,7 +699,7 @@ var CP_RULES=[
   [/^10(?!\d)/,function(m,st){st.nums.push(10);}],
   [/^\d/,function(m,st){st.nums.push(+m[0]);}],
   [HOMONUM_RE,function(m,st){for(var i=0;i<HOMONUM.length;i++)if(HOMONUM[i][0]===m[1]){st.nums.push(HOMONUM[i][1]);return;}}],
-  [/^(みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)/i,function(){}]
+  [/^(遠心|えんしん|円心|中央|ちゅうおう|真ん中|まんなか|近心|きんしん|近親|めじある|でぃすたる|みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)/i,function(){}]
 ];
 function cpVal(x){var v={'〇':0,'零':0,'ぜろ':0,'一':1,'いち':1,'二':2,'に':2,'三':3,'さん':3}[x];return v!=null?v:+x;}
 function compoundParse(text){
@@ -754,7 +754,14 @@ function targetTooth(a){
   var ci=curInfo();return ci?ci.tooth:null;
 }
 var FLAGMAP={bop:'bop',plaque:'pl',pus:'pus',calculus:'calc'};
-function applyActions(actions){
+// 「舌側」「頬側」などを実際に言っていないのに、Geminiが面を変えてきたら無視する（順番どおりに進める）
+var SIDE_WORDS=/舌側|ぜっそく|口蓋|こうがい|内側|うちがわ|リンガル|パラタル|頬側|きょうそく|唇側|外側|そとがわ|バッカル|裏|表/;
+function keepOrder(actions,said){
+  if(!actions||said==null||SIDE_WORDS.test(said))return actions;
+  return actions.map(function(a){if(a&&(a.kind==='pocket'||a.kind==='recession'||a.kind==='move')&&a.side&&a.side!=='none'){a=Object.assign({},a);a.side='none';}return a;});
+}
+function applyActions(actions,said){
+  actions=keepOrder(actions,said);
   var notes=[];
   if(!actions||!actions.length)return notes;
   if(actions.length===1&&actions[0].kind==='undo'){if(undo())notes.push('元に戻しました');return notes;}
@@ -1108,7 +1115,8 @@ var GEM_SYS=[
   '聞き間違いの例：出欠/出決→出血、背嚢/敗能→排膿、史跡/指石→歯石、童謡/動揺度→動揺、結尊→欠損、遠心/円心→遠心、近親/金新→近心、拘束/効率→頬側、舌足/下側→舌側、高外側/口蓋→口蓋側。その他も文脈で判断する。',
   '数字の聞き間違い：「さん」「さ」=3、「よん」「し」「よ」=4、「ご」「後」「語」=5、「ろく」「6」=6、「なな」「しち」=7、「はち」=8、「に」「二」「似」=2、「いち」=1、「324」のような続いた数字は1桁ずつ（3,2,4）。ただし10以上の深さは「じゅう」「十」と言われたときだけ。ポケット深さは通常1〜15。',
   '「右上の7番」「右上7」「7番右上」「うえ みぎ なな」なども同じ歯（17）。',
-  'tooth が言われていなければ 0、side が言われていなければ "none" にする。'
+  'tooth が言われていなければ 0、side が言われていなければ "none" にする。「頬側」「舌側」「口蓋側」などを実際に言っていないのに side を推測で変えてはいけない（入力は画面の順番どおりに進む）。',
+  '「遠心」「中央」「近心」は読み上げの目印なので、数字は values に読んだ順に並べるだけでよい。'
 ].join('\n');
 var GEM_SCHEMA={type:'OBJECT',properties:{transcript:{type:'STRING'},actions:{type:'ARRAY',items:{type:'OBJECT',properties:{
   kind:{type:'STRING',enum:['pocket','recession','bop','plaque','pus','calculus','clear','primary','mobility','furcation','missing','present','move','undo','skip','none']},
@@ -1176,7 +1184,7 @@ function handleUtterance(text){
   }
   var line=addLog('「'+text+'」→ AIで解析中…','ai');
   return run('parseUtterance',text,ctxForAI()).then(function(res){
-    var notes=applyActions(res&&res.actions);render();
+    var notes=applyActions(res&&res.actions,text);render();
     line.className=notes.length?'ok':'ng';
     line.textContent='「'+text+'」→ '+(notes.length?notes.join('、'):'検査の指示として読み取れませんでした');
   }).catch(function(e){
@@ -1349,7 +1357,7 @@ function sendAudio(chunks,rate){
   queue=queue.then(function(){
     return gemCall([{text:ctxText(ctxForAI())+'\n次の音声を聞き取り、transcript に聞き取った日本語を、actions に検査の指示を入れてください。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}]).then(function(res){
-      var notes=applyActions(res&&res.actions);render();
+      var notes=applyActions(res&&res.actions,res&&res.transcript||'');render();
       $('heard').textContent='「'+(res.transcript||'')+'」';
       line.className=notes.length?'ok':'ng';
       line.textContent='🎤「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.join('、'):'検査の指示として読み取れませんでした');
@@ -1411,7 +1419,7 @@ function cutBatch(){
       'ある面で数字が足りないと判断したら（例：3つのはずが2つで間があいた）、聞き取れなかった位置に -1 を入れてその面の個数にそろえ、次の面にずらさない。'+
       '「出血」「排膿」は直前の数字の部位につく。言い直し（「違う」「訂正」「じゃなくて」）は直したほうだけにする。雑談や患者への声かけは無視する。'},
       {inlineData:{mimeType:'audio/wav',data:b64}}],{full:true}).then(function(res){
-      var notes=applyActions(res&&res.actions);render();
+      var notes=applyActions(res&&res.actions,res&&res.transcript||'');render();
       line.className=notes.length?'ok':'ng';
       line.textContent='🎙「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.length+'件入力：'+notes.join('、'):'検査の指示として読み取れませんでした');
     }).catch(function(e){line.className='ng';line.textContent='🎙 '+errMsg(e);})
