@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev8・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev9・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -1507,13 +1507,46 @@ function eraseCurrentValue(){
   }
   S.last=null;playInputClick();return true;
 }
+function moveVisualCursor(key){
+  var dx=key==='ArrowRight'?1:key==='ArrowLeft'?-1:0;
+  var dy=key==='ArrowDown'?1:key==='ArrowUp'?-1:0;
+  if(!dx&&!dy)return false;
+  if(!SITE_TABS[S.tab]){
+    var tooth=curTooth();if(tooth==null)return false;
+    var jaw=UPPER.indexOf(tooth)>=0?0:1,rows=[UPPER,LOWER],col=rows[jaw].indexOf(tooth);
+    var targetRow=jaw+dy;if(targetRow<0||targetRow>1)return false;
+    var targetCol=col+dx,tl=toothList();
+    while(targetCol>=0&&targetCol<16){
+      var target=rows[targetRow][targetCol];
+      if(!notMeasured(S.teeth[target])&&tl.indexOf(target)>=0){S.tcur=tl.indexOf(target);S.last=null;return true;}
+      if(!dx)return false;targetCol+=dx;
+    }
+    return false;
+  }
+  var ci=curInfo();if(!ci)return false;
+  var rows=[{teeth:UPPER,side:'b'},{teeth:UPPER,side:'l'},{teeth:LOWER,side:'l'},{teeth:LOWER,side:'b'}];
+  var row=(jawOf(ci.tooth)==='U'?(ci.side==='b'?0:1):(ci.side==='l'?2:3));
+  var col=rows[row].teeth.indexOf(ci.tooth)*3+ci.idx;
+  var r=row+dy,x=col+dx;
+  while(r>=0&&r<4&&x>=0&&x<48){
+    var tooth=rows[r].teeth[Math.floor(x/3)],idx=x%3,side=rows[r].side;
+    if(dy&&S.mode===4&&side==='l')idx=1;
+    if(!notMeasured(S.teeth[tooth])&&!(S.mode===4&&side==='l'&&idx!==1)){
+      var gi=groupIndex(tooth,side),ord=siteOrder(GROUPS[gi]);
+      S.cur={g:gi,t:GROUPS[gi].teeth.indexOf(tooth),s:ord.indexOf(idx)};
+      S.last=null;return true;
+    }
+    if(dx)x+=dx;else r+=dy;
+  }
+  return false;
+}
 function handleChartKey(e){
   var active=document.activeElement;
   if(e.isComposing||e.ctrlKey||e.metaKey||e.altKey)return;
   if(active&&(/INPUT|SELECT|TEXTAREA/.test(active.tagName)||active.isContentEditable))return;
   if(/^\d$/.test(e.key)){pad(e.key);e.preventDefault();}
-  else if(e.key==='ArrowRight'||e.key==='Enter'){pad('fwd');e.preventDefault();}
-  else if(e.key==='ArrowLeft'){pad('back');e.preventDefault();}
+  else if(/^Arrow(Left|Right|Up|Down)$/.test(e.key)){moveVisualCursor(e.key);render();e.preventDefault();}
+  else if(e.key==='Enter'){pad('fwd');e.preventDefault();}
   else if(e.key==='Backspace'){eraseCurrentValue();render();e.preventDefault();}
   else if(e.key==='b'){pad('bop');}
 }
