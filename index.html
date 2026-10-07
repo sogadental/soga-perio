@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev7・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev8・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -1491,6 +1491,32 @@ function pad(k){
   }
   render();
 }
+function eraseCurrentValue(){
+  var ci,tt,t,field;
+  if(SITE_TABS[S.tab]){
+    ci=curInfo();if(!ci)return false;t=S.teeth[ci.tooth];
+    field=S.tab==='rec'?'rec':S.tab==='pl'?'pl':'pd';
+    var mark=ci.tooth+ci.side+ci.idx;
+    if((field==='pl'?!t.pl[ci.side][ci.idx]:t[field][ci.side][ci.idx]==null)&&!(field!=='pl'&&S.chk&&S.chk[mark]))return false;
+    snap();t[field][ci.side][ci.idx]=field==='pl'?false:null;
+    if(field!=='pl'&&S.chk)delete S.chk[mark];
+  }else{
+    tt=curTooth();if(tt==null)return false;field=S.tab==='mob'?'mob':'furc';
+    if(S.teeth[tt][field]==null)return false;
+    snap();S.teeth[tt][field]=null;
+  }
+  S.last=null;playInputClick();return true;
+}
+function handleChartKey(e){
+  var active=document.activeElement;
+  if(e.isComposing||e.ctrlKey||e.metaKey||e.altKey)return;
+  if(active&&(/INPUT|SELECT|TEXTAREA/.test(active.tagName)||active.isContentEditable))return;
+  if(/^\d$/.test(e.key)){pad(e.key);e.preventDefault();}
+  else if(e.key==='ArrowRight'||e.key==='Enter'){pad('fwd');e.preventDefault();}
+  else if(e.key==='ArrowLeft'){pad('back');e.preventDefault();}
+  else if(e.key==='Backspace'){eraseCurrentValue();render();e.preventDefault();}
+  else if(e.key==='b'){pad('bop');}
+}
 function clearCurrent(){
   snap();
   if(SITE_TABS[S.tab]){
@@ -1884,14 +1910,8 @@ function bind(){
   $('histGo').addEventListener('click',searchHist);
   $('histClose').addEventListener('click',function(){$('dlgHist').close();});
   $('histList').addEventListener('click',function(e){var d=e.target.closest('div[data-id]');if(d)loadFromHist(d.dataset.id);});
-  // パソコンのキーボードでも入力できるように
-  document.addEventListener('keydown',function(e){
-    if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;
-    if(/^\d$/.test(e.key)){pad(e.key);e.preventDefault();}
-    else if(e.key==='ArrowRight'||e.key==='Enter'){pad('fwd');e.preventDefault();}
-    else if(e.key==='ArrowLeft'||e.key==='Backspace'){pad('back');e.preventDefault();}
-    else if(e.key==='b'){pad('bop');}
-  });
+  // 文字入力欄以外でチャートのキーボード操作を受け付ける。
+  document.addEventListener('keydown',handleChartKey);
 }
 
 function init(){
