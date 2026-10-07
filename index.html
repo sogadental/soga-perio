@@ -239,7 +239,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 1.3（高速モード）・お試し版：患者データは入れません・保存しません</span>
+      <span class="trial">Ver 1.4（高速モード）・お試し版：患者データは入れません・保存しません</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -635,6 +635,42 @@ function localParse(text){
   if(/^(取り消し|取消|取り消す|戻して|間違い|間違えた|元に戻す|今のなし)$/.test(w))return {type:'undo'};
   if(/^(次|次の歯|スキップ|飛ばして)$/.test(w))return {type:'skip'};
   return null;
+}
+
+// 「右上7番 頬側 3 2 4 出血」のような組み合わせを手元で解析する（分からない言葉があれば null → Gemini）
+var CP_NUM={'いち':1,'に':2,'さん':3,'よん':4,'し':4,'ご':5,'ろく':6,'なな':7,'しち':7,'はち':8,'きゅう':9,'く':9,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+var CP_JAW={'右上':1,'上右':1,'左上':2,'上左':2,'左下':3,'下左':3,'右下':4,'下右':4};
+var CP_RULES=[
+  [/^(右上|上右|左上|上左|左下|下左|右下|下右)(?:の)?\s*([1-8一二三四五六七八]|いち|に|さん|よん|ご|ろく|なな|しち|はち)\s*(?:番)?/,function(m,st){var n=/\d/.test(m[2])?+m[2]:CP_NUM[m[2]];st.flush();st.tooth=CP_JAW[m[1]]*10+n;st.side='none';st.moved=true;}],
+  [/^(頬側|きょうそく|唇側|しんそく|外側|そとがわ|ばっかる|拘束)/,function(m,st){st.flush();st.side='buccal';st.moved=true;}],
+  [/^(舌側|ぜっそく|口蓋側|口蓋|こうがい|内側|うちがわ|りんがる|ぱらたる)/,function(m,st){st.flush();st.side='lingual';st.moved=true;}],
+  [/^(動揺度?|どうよう|童謡)\s*(?:は)?\s*([0-3〇零一二三]|ぜろ|いち|に|さん)\s*(?:度)?/,function(m,st){st.flush();st.acts.push({kind:'mobility',tooth:st.tooth||0,value:cpVal(m[2])});}],
+  [/^(根分岐部?病変|根分岐部?|分岐部?|ぶんき)\s*(?:は)?\s*([0-3〇零一二三]|ぜろ|いち|に|さん)\s*(?:度)?/,function(m,st){st.flush();st.acts.push({kind:'furcation',tooth:st.tooth||0,value:cpVal(m[2])});}],
+  [/^(出血|出欠|出決|しゅっけつ|ぶりーでぃんぐ|BOP)(?:あり|有り)?/i,function(m,st){st.flush();st.acts.push({kind:'bop',tooth:st.tooth||0,side:st.side,sites:['last']});}],
+  [/^(排膿|背嚢|はいのう)(?:あり|有り)?/,function(m,st){st.flush();st.acts.push({kind:'pus',tooth:st.tooth||0,side:st.side,sites:['last']});}],
+  [/^(歯石|史跡|しせき)(?:あり|有り)?/,function(m,st){st.flush();st.acts.push({kind:'calculus',tooth:st.tooth||0,side:st.side,sites:['last']});}],
+  [/^(ぷらーく)(?:あり|有り)?/,function(m,st){st.flush();st.acts.push({kind:'plaque',tooth:st.tooth||0,side:st.side,sites:['last']});}],
+  [/^(欠損|けっそん|結尊)/,function(m,st){st.flush();st.acts.push({kind:'missing',tooth:st.tooth||0});st.moved=false;}],
+  [/^§(\d+)/,function(m,st){st.nums.push(+m[1]);}],
+  [/^10(?!\d)/,function(m,st){st.nums.push(10);}],
+  [/^\d/,function(m,st){st.nums.push(+m[0]);}],
+  [/^(いち|さん|よん|ろく|なな|しち|はち|きゅう|に|ご|し)/,function(m,st){st.nums.push(CP_NUM[m[1]]);}],
+  [/^(みり|mm|番|の|は|で|と|あり|です|、|。|,|\.|・|\s)+/i,function(){}]
+];
+function cpVal(x){var v={'〇':0,'零':0,'ぜろ':0,'一':1,'いち':1,'二':2,'に':2,'三':3,'さん':3}[x];return v!=null?v:+x;}
+function compoundParse(text){
+  var t=normalize(String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);}));
+  var st={tooth:0,side:'none',nums:[],acts:[],moved:false};
+  st.flush=function(){if(st.nums.length){st.acts.push({kind:'pocket',tooth:st.tooth,side:st.side,values:st.nums});st.nums=[];st.moved=false;}};
+  var guard=0;
+  while(t.length&&guard++<200){
+    var hit=false;
+    for(var i=0;i<CP_RULES.length;i++){var m=t.match(CP_RULES[i][0]);if(m&&m[0].length){CP_RULES[i][1](m,st);t=t.slice(m[0].length);hit=true;break;}}
+    if(!hit)return null;
+  }
+  st.flush();
+  if(st.moved)st.acts.push({kind:'move',tooth:st.tooth,side:st.side});
+  return st.acts.length?st.acts:null;
 }
 
 /* ───────── 解析結果を反映 ───────── */
@@ -1063,6 +1099,11 @@ function handleUtterance(text){
     addLog('「'+text+'」→ '+(notes.join('、')||'—'),'ok');
     return Promise.resolve();
   }
+  var cp=compoundParse(text);
+  if(cp){
+    var n2=applyActions(cp);render();
+    if(n2.length){addLog('「'+text+'」→ '+n2.join('、'),'ok');return Promise.resolve();}
+  }
   var line=addLog('「'+text+'」→ AIで解析中…','ai');
   return run('parseUtterance',text,ctxForAI()).then(function(res){
     var notes=applyActions(res&&res.actions);render();
@@ -1118,12 +1159,24 @@ function startFast(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('この端末では高速モードが使えないため、高精度モードで始めます');startWave();return;}
   recog=new SR();recog.lang='ja-JP';recog.continuous=true;recog.interimResults=true;
+  var done='',idle=null;
+  function commit(full){
+    clearTimeout(idle);
+    var add=full.indexOf(done)===0?full.slice(done.length):full.slice(Math.min(done.length,full.length));
+    done=full;add=add.trim();
+    if(add)handleUtterance(add);
+  }
   recog.onresult=function(e){
-    for(var i=e.resultIndex;i<e.results.length;i++){
-      var r=e.results[i],tx=r[0].transcript;
-      if(r.isFinal){$('heard').textContent='「'+tx+'」';handleUtterance(tx);}else{$('heard').textContent='聞き取り中：'+tx;}
-    }
+    var full='',fin=true;
+    for(var i=0;i<e.results.length;i++){full+=e.results[i][0].transcript;if(!e.results[i].isFinal)fin=false;}
+    $('heard').textContent='聞き取り中：'+full.slice(done.length);
+    if(fin){commit(full);return;}
+    // 数字だけで3つ揃ったら待たずに反映、それ以外は0.35秒止まったら反映
+    var add=full.slice(done.length),p=localParse(add.trim());
+    if(p&&p.type==='nums'&&p.nums.length>=3){commit(full);return;}
+    clearTimeout(idle);idle=setTimeout(function(){commit(full);},350);
   };
+  recog.onstart=function(){done='';};
   recog.onerror=function(e){
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;micUI();vstate('');
       alert('マイクが使えません。\n\nアドレス欄の「ぁあ」→「Webサイトの設定」→ マイクを「許可」、\niPadの「設定」→「Siri」で音声入力がオンか確認してください。');}
