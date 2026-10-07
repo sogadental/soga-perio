@@ -243,7 +243,7 @@ dialog a{color:var(--accent)}
   <div class="panel noprint">
     <div class="head">
       <div class="badge" id="badge">ポケット6</div>
-      <span class="trial">Ver 2.3-dev2・お試し版（患者データなし・保存なし）</span>
+      <span class="trial">Ver 2.3-dev4・お試し版（患者データなし・保存なし）</span>
       <div class="psearch">
         <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
         <div class="plist" id="plist"></div>
@@ -788,27 +788,12 @@ function applyActions(actions,said){
   });
   return notes;
 }
-var lastNum={at:0,pos:null};
-function samePos(a,b){return a&&b&&a.g===b.g&&a.t===b.t&&a.s===b.s;}
-function alignByPause(){
-  var ci=curInfo();if(!ci||!SITE_TABS[S.tab]||S.tab==='pl')return '';
-  var gap=Date.now()-lastNum.at;
-  if(!(lastNum.at&&gap>1200&&gap<30000&&samePos(lastNum.pos,S.cur)&&S.cur.s>0))return '';
-  var tooth=ci.tooth,side=ci.side,ord=siteOrder(GROUPS[S.cur.g]);
-  S.chk=S.chk||{};
-  for(var k=S.cur.s;k<ord.length;k++)S.chk[tooth+side+ord[k]]=1;
-  S.cur.s=ord.length-1;stepFwd();
-  return toothLabel(tooth)+(side==='l'?'舌側':'頬側')+'は数字が足りないので「？」にしました';
-}
-function markNum(){lastNum={at:Date.now(),pos:{g:S.cur.g,t:S.cur.t,s:S.cur.s}};}
 function applyLocal(p){
   if(p.type==='undo'){return undo()?['元に戻しました']:[];}
   snap();
   if(p.type==='nums'){
-    var al=(S.tab==='mob'||S.tab==='furc')?'':alignByPause();
-    if(al){fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);markNum();toast(al);return [p.nums.join('・'),'（'+al+'）'];}
     if(S.tab==='mob'||S.tab==='furc'){p.nums.forEach(function(n){putTooth(S.tab==='mob'?'mob':'furc',Math.min(3,n));});}
-    else{fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);markNum();}
+    else{fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);}
     return [p.nums.join('・')];
   }
   if(p.type==='flag'){
@@ -1094,6 +1079,7 @@ var GEM_SYS=[
   '1つの発言に複数の指示があれば、話した順に actions に並べる。',
   '発言は音声（または文字）で届く。歯科の歯周検査の読み上げとして最も自然な意味に解釈する。数字は「さん・に・よん」のように1桁ずつ読み上げられることが多い。',
   '聞き間違いの例：出欠/出決→出血、背嚢/敗能→排膿、史跡/指石→歯石、童謡/動揺度→動揺、結尊→欠損、遠心/円心→遠心、近親/金新→近心、拘束/効率→頬側、舌足/下側→舌側、高外側/口蓋→口蓋側。その他も文脈で判断する。',
+  '同じ数字の連続発話を一つの数に合成しない。「いちいちいち」「いち、いち、いち」は[1,1,1]。「じゅういち」は[11]。「いちいち」は[1,1]。「じゅうに」は[12]。「いちに」は[1,2]。音声に「じゅう」が聞こえないのに11や12にまとめない。文字だけで十一と届いた場合は元音声の読みを確認できないため、連続する1へ勝手に変更しない。',
   '数字の聞き間違い：「さん」「さ」=3、「よん」「し」「よ」=4、「ご」「後」「語」=5、「ろく」「6」=6、「なな」「しち」=7、「はち」=8、「に」「二」「似」=2、「いち」=1、「324」のような続いた数字は1桁ずつ（3,2,4）。ただし10以上の深さは「じゅう」「十」と言われたときだけ。ポケット深さは通常1〜15。',
   '「右上の7番」「右上7」「7番右上」「うえ みぎ なな」なども同じ歯（17）。',
   'tooth が言われていなければ 0、side が言われていなければ "none" にする。「頬側」「舌側」「口蓋側」などを実際に言っていないのに side を推測で変えてはいけない（入力は画面の順番どおりに進む）。',
@@ -1232,45 +1218,30 @@ function startFast(){
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('この端末では高速モードが使えないため、高精度モードで始めます');startWave();return;}
   recog=new SR();recog.lang='ja-JP';recog.continuous=true;recog.interimResults=true;recog.maxAlternatives=5;
-  // done：反映済みの文字（空白・句読点を除いて比べる）
-  var done='',idle=null,lastEv=null;
-  function nz(x){return String(x||'').replace(/[\s、。,.・ー]/g,'');}
-  function restOf(full){
-    var nf=nz(full),nd=nz(done);
-    var k=0;while(k<nd.length&&k<nf.length&&nf[k]===nd[k])k++;
-    // 認識がリセットされた（先頭から違う）ときは全部を新しい発言として扱う
-    if(nd.length&&k===0)k=0;
-    else if(k<nd.length&&k<nd.length*0.5)k=0;
-    // 元の文字列で k 文字目（空白除く）以降を取り出す
-    var c=0,i=0;while(i<full.length&&c<k){if(!/[\s、。,.・ー]/.test(full[i]))c++;i++;}
-    return full.slice(i);
-  }
-  function parsable(x){x=x.trim();return !!(x&&(localParse(x)||compoundParse(x)));}
-  function commit(full){
-    clearTimeout(idle);
-    var add=restOf(full);
-    // 1番目の候補で分からなければ、ほかの候補（聞き取りの別案）を試す
-    if(!parsable(add)&&lastEv){
-      var rs=lastEv.results,li=rs.length-1,pre='';
-      for(var i=0;i<li;i++)pre+=rs[i][0].transcript;
-      for(var j=1;j<rs[li].length;j++){var alt=restOf(pre+rs[li][j].transcript);if(parsable(alt)){add=alt;break;}}
-    }
-    done=full;add=add.trim();
-    if(add)handleUtterance(add);
-  }
+  // 同じ確定結果の再通知・書き換えで二重入力しない。
+  // 発話の文字ではなく、認識セッション内の結果番号で管理する。
+  var consumed={};
+  function parsable(x){return !!(x&&(localParse(x)||compoundParse(x)));}
   recog.onresult=function(e){
-    lastEv=e;
-    var full='',fin=true;
-    for(var i=0;i<e.results.length;i++){full+=e.results[i][0].transcript;if(!e.results[i].isFinal)fin=false;}
-    var add=restOf(full);
-    $('heard').textContent='聞き取り中：'+add;
-    if(fin){commit(full);return;}
-    // 数字だけで3つ揃ったら待たずに反映、それ以外は0.35秒止まったら反映
-    var p=localParse(add.trim());
-    if(p&&p.type==='nums'&&p.nums.length>=3){commit(full);return;}
-    clearTimeout(idle);idle=setTimeout(function(){commit(full);},350);
+    var fresh=[],interim=[];
+    for(var i=0;i<e.results.length;i++){
+      var result=e.results[i];
+      if(!result.isFinal){interim.push(result[0].transcript);continue;}
+      if(consumed[i])continue;
+      consumed[i]=true;
+      var text=String(result[0].transcript||'').trim();
+      if(!parsable(text)){
+        for(var j=1;j<result.length;j++){
+          var alt=String(result[j].transcript||'').trim();
+          if(parsable(alt)){text=alt;break;}
+        }
+      }
+      if(text)fresh.push(text);
+    }
+    if(interim.length)$('heard').textContent='聞き取り中：'+interim.join(' ');
+    if(fresh.length)enqueue(fresh.join(' '));
   };
-  recog.onstart=function(){done='';vstate('聞いています（高速）');};
+  recog.onstart=function(){consumed={};vstate('聞いています（高速）');};
   recog.onerror=function(e){
     if(e.error&&e.error!=='no-speech'&&e.error!=='aborted')vstate('聞き取りエラー：'+({network:'通信できません','audio-capture':'マイクが使えません'}[e.error]||e.error));
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;micUI();vstate('');
