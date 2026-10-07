@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>歯周検査 お試し版</title>
+<style>
+:root{
+  --bg:#fdf6f4; --panel:#ffffff; --panel2:#fffafa; --line:#efdfdc; --line2:#f5eae8; --ink:#3f3538; --sub:#9a8b90;
+  --accent:#ee7f93; --accent2:#f6a38a; --accent-ink:#ffffff; --accent-soft:#fdebee;
+  --mint:#4fb89b; --mint-soft:#e5f6f0; --red:#e5484d; --red-soft:#fde8e8; --blue:#5b9be6; --amber:#e9a93a; --amber-soft:#fff3d9;
+  --violet:#9884e8; --green:var(--mint); --tab:#fff; --key:#ffffff; --key-hi:#fff3f4;
+  --shadow:0 6px 18px rgba(214,140,150,.14); --orange:var(--accent); --navy:var(--bg);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);min-height:100%;
+  font-family:"Hiragino Maru Gothic ProN","ヒラギノ丸ゴ ProN","Zen Maru Gothic","M PLUS Rounded 1c","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;}
+button{font-family:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:inherit}
+body{-webkit-text-size-adjust:100%}
+input,select,textarea{font-size:16px;font-family:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:12px}
+.panel{background:var(--panel);border:1px solid var(--line2);border-radius:20px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+
+/* 見出し */
+.head{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.badge{background:var(--accent);color:#fff;font-weight:700;padding:9px 18px;border-radius:999px;min-width:110px;text-align:center}
+.head label{font-size:11px;color:var(--sub);display:flex;flex-direction:column;gap:3px}
+.head input,.head select{font-size:15px;padding:8px 10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+.head input:focus,.head select:focus,.kform input:focus,.kform select:focus,.kform textarea:focus,dialog input:focus,dialog textarea:focus,.typein input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.seg{display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+.seg button{border:0;background:transparent;padding:7px 14px;font-size:14px;color:var(--sub)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:700}
+.spacer{flex:1}
+.tbtn{border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:8px 15px;font-size:14px}
+.tbtn:active{background:var(--key-hi)}
+.mic{border:0;border-radius:999px;padding:12px 22px;font-size:16px;font-weight:700;background:var(--mint);color:#fff;min-width:170px;box-shadow:0 4px 12px rgba(79,184,155,.35)}
+.mic.on{background:var(--red);box-shadow:0 4px 12px rgba(229,72,77,.35);animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}70%{box-shadow:0 0 0 14px rgba(229,72,77,0)}100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}}
+
+/* 患者検索 */
+.psearch{position:relative}
+.psearch input{width:180px}
+.plist{position:absolute;left:0;top:100%;z-index:5;background:#fff;border:1px solid var(--line);border-radius:16px;min-width:300px;max-height:320px;overflow-y:auto;box-shadow:0 12px 30px rgba(120,80,90,.18);display:none}
+.plist div{padding:12px 14px;border-bottom:1px solid var(--line2);font-size:15px;cursor:pointer}
+.plist div small{color:var(--sub);margin-left:8px}
+.plist div:active,.plist div:hover{background:var(--accent-soft)}
+.pcur{display:flex;flex-direction:column;justify-content:center;min-width:70px}
+.pcur span{font-size:11px;color:var(--sub)}
+.pcur b{font-size:19px;color:var(--accent)}
+
+/* 現在位置 */
+.now{display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.now .pos{font-size:19px;font-weight:700;color:var(--ink)}
+.now .heard{font-size:13px;color:var(--sub);flex:1;min-width:200px}
+.dictbox{display:none;margin-top:10px;padding:12px;border:1.5px dashed var(--accent);border-radius:16px;background:var(--accent-soft)}
+.dictbox.on{display:block}
+.dicthint{font-size:13px;color:#7c6a70;margin-bottom:6px}
+.dicthint b{color:var(--accent)}
+.dictbox textarea{width:100%;font-size:18px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);resize:none}
+.dictbox textarea:focus{outline:none;border-color:var(--accent)}
+
+/* お試し版：患者まわりは使わない */
+.psearch,.pcur,.head label:has(#pexam),.head label:has(#ptype),#btnHist,#nav [data-view=karte],#kpanel,.dictbox,#setExamWrap,#sheetLink{display:none!important}
+.trial{background:#fff3d9;border:1px solid #f4d48f;color:#8a5a00;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700}
+.lvl{display:inline-block;width:90px;height:10px;border-radius:999px;background:#f3e6e6;overflow:hidden;vertical-align:middle}
+.lvl i{display:block;height:100%;width:0;background:var(--mint);transition:width .08s}
+.vstate{font-size:13px;color:var(--sub);min-width:80px}
+
+/* 画面切り替えナビ */
+.nav{position:sticky;top:6px;z-index:6;display:flex;gap:6px;padding:6px;margin:0 0 14px;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--line2);border-radius:999px;box-shadow:var(--shadow)}
+.nav button{flex:1;border:0;background:transparent;border-radius:999px;padding:12px 6px;font-size:16px;font-weight:700;color:#9a8b90}
+.nav button.on{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(238,127,147,.35)}
+.view{display:none}
+.view.on{display:block}
+
+/* 数字の表 */
+.gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:14px;border:1px solid var(--line)}
+table.chart{border-collapse:collapse;width:100%;min-width:900px;table-layout:fixed}
+table.chart td{border:1px solid var(--line2);text-align:center;font-size:14px;height:30px;padding:0;position:relative;user-select:none;color:var(--ink);background:#fff}
+table.chart td.lab{width:34px;font-size:10px;color:var(--sub);background:#fff8f7}
+table.chart td.site{cursor:pointer}
+table.chart td.mid{border-left:2px solid #f2c4cc}
+table.chart td.tno{height:36px;font-size:17px;font-weight:700;background:#fff4f5;color:#6b5a60;cursor:pointer}
+table.chart td.tno.miss{background:#f4f1f1;color:#cdbfc2;text-decoration:line-through}
+table.chart td.tno.cur{background:var(--accent);color:#fff}
+table.chart td.tno.curlite{background:#fde2e7;color:var(--accent)}
+table.chart td.tno small{position:absolute;font-size:10px;font-weight:700;top:1px}
+table.chart td.tno small.m{left:3px;color:var(--violet)}
+table.chart td.tno small.f{right:3px;color:var(--amber)}
+table.chart tr.sep td{height:5px;border:0;background:#f6d9de}
+td.site.na{background:repeating-linear-gradient(45deg,#fff,#fff 4px,#faf3f3 4px,#faf3f3 8px);cursor:default}
+td.site.missing{background:#f6f2f2}
+td.site.deep span.v{color:var(--red);font-weight:700}
+td.site.pus{background:var(--amber-soft)}
+td.site.plq{background:#efeafd}
+td.site.cursor{outline:2.5px solid var(--accent);outline-offset:-2.5px;background:#fff6f7}
+td.site span.v{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%}
+td.site.bop span.v{border:2px solid var(--red);background:var(--red-soft)}
+td.site.calc::after{content:"";position:absolute;left:3px;right:3px;bottom:2px;height:3px;border-radius:2px;background:var(--blue)}
+td.site.plmark::before{content:"";position:absolute;right:1px;top:1px;border-top:7px solid var(--violet);border-left:7px solid transparent}
+
+/* タブ */
+.tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px 0;margin:10px 0}
+.tabs button{min-width:130px;padding:12px 10px;font-size:17px;font-weight:700;border:1.5px solid var(--line);background:#fff;color:#8b7a80;border-radius:999px}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(238,127,147,.35)}
+
+/* 下段 */
+.bottom{display:grid;grid-template-columns:minmax(260px,1fr) minmax(430px,1.4fr);gap:16px}
+.score{border-collapse:separate;border-spacing:0;width:100%;max-width:420px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.score th{background:#fff1f3;font-size:14px;padding:8px;color:#b06b79;font-weight:700}
+.score td{border-top:1px solid var(--line2);padding:8px 12px;font-size:14px}
+.score td.n{text-align:right;color:var(--accent);font-size:20px;font-weight:700;white-space:nowrap}
+.note{font-size:11px;color:var(--sub);margin:6px 0 10px;line-height:1.6}
+.note b{color:var(--red)}
+.side-btns{display:flex;gap:8px;margin:8px 0}
+.side-btns button{width:84px;height:56px;font-size:17px;font-weight:700;border:1.5px solid var(--line);background:#fff;border-radius:16px}
+.side-btns button:active{background:var(--key-hi)}
+.log{border:1px solid var(--line);border-radius:14px;height:150px;overflow-y:auto;font-size:13px;padding:6px 12px;background:#fffdfc}
+.log div{padding:3px 0;border-bottom:1px dashed var(--line2)}
+.log .ok{color:#2f8f75}.log .ng{color:var(--red)}.log .ai{color:var(--violet)}
+.typein{display:flex;gap:6px;margin-top:6px}
+.typein input{flex:1;font-size:15px;padding:9px 12px;border:1.5px solid var(--line);border-radius:999px;background:#fff;color:var(--ink)}
+
+.pad{display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(4,64px);gap:8px}
+.pad .gap{visibility:hidden}
+.pad button{border:1.5px solid var(--line);background:#fff;font-size:23px;font-weight:700;border-radius:18px;color:var(--ink);box-shadow:0 3px 0 #f1e2e0}
+.pad button:active{transform:translateY(2px);box-shadow:0 1px 0 #f1e2e0;background:var(--key-hi)}
+.pad .k-bop span{display:inline-block;border:2.5px solid var(--red);border-radius:50%;padding:6px 4px;font-size:16px;color:var(--red)}
+.pad .k-calc{font-size:17px;box-shadow:inset 0 -5px 0 var(--blue),0 3px 0 #f1e2e0}
+.pad .k-pus{background:var(--amber-soft);border-color:#f4d48f;color:#b17a12;font-size:17px}
+.pad .small{font-size:13px;color:var(--sub)}
+.pad .on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.pad .tall{grid-row:span 2;font-size:21px}
+.pad .save{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 0 #d9677b}
+.pad [data-k=finish]{background:var(--mint);border-color:var(--mint);box-shadow:0 3px 0 #3c9a81}
+
+/* サブカルテ */
+.kh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.kh h3{margin:0;font-size:17px;color:#b06b79}
+.kh .who{color:var(--accent);font-weight:700}
+.steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 12px}
+.step{border:1.5px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;background:#fff;color:#8b7a80;line-height:1.2;text-align:center}
+.step small{display:block;font-size:10px}
+.step.done{background:var(--mint-soft);border-color:#a9dfcf;color:#2f8f75}
+.step.next{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;box-shadow:0 4px 12px rgba(238,127,147,.35)}
+.arrow{color:#e3c5ca;font-size:13px}
+.kform{display:grid;grid-template-columns:150px 1fr 1fr;gap:10px 12px;align-items:start}
+.kform label{font-size:11px;color:var(--sub);display:flex;flex-direction:column;gap:4px}
+.kform input,.kform select,.kform textarea{font-size:15px;padding:9px 10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+.kform textarea{min-height:64px;resize:vertical}
+.kform .wide{grid-column:1/-1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chips button{border:1.5px solid var(--line);background:#fff;color:#7c6a70;border-radius:999px;padding:5px 12px;font-size:13px}
+.chips button:active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.kbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
+.kbtns .pri{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.memomic{border:0;background:var(--mint);color:#fff;border-radius:999px;padding:6px 14px;font-size:13px;align-self:flex-start}
+.memomic.on{background:var(--red)}
+table.krec{border-collapse:separate;border-spacing:0;width:100%;margin-top:12px;font-size:14px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+table.krec th{background:#fff1f3;font-weight:700;font-size:12px;padding:8px;text-align:left;color:#b06b79}
+table.krec td{border-top:1px solid var(--line2);padding:8px;vertical-align:top;white-space:pre-wrap}
+table.krec td.act{white-space:nowrap;width:1%}
+table.krec td.act button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;font-size:12px}
+.nextbox{margin:8px 0 12px;padding:10px 16px;background:var(--accent-soft);border-radius:14px;font-size:15px}
+.nextbox b{color:var(--accent)}
+@media (max-width:700px){.kform{grid-template-columns:1fr}}
+
+/* ダイアログ */
+dialog{border:0;border-radius:22px;padding:20px;max-width:560px;width:92vw;background:#fff;color:var(--ink);box-shadow:0 24px 60px rgba(120,80,90,.25)}
+dialog::backdrop{background:rgba(80,50,60,.35)}
+dialog h2{margin:0 0 10px;font-size:18px;color:#b06b79}
+dialog label{display:block;font-size:12px;color:var(--sub);margin:10px 0 4px}
+dialog input,dialog textarea{width:100%;font-size:15px;padding:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+dialog a{color:var(--accent)}
+.drow{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.drow button{padding:9px 18px;font-size:15px;border-radius:999px;border:1.5px solid var(--line);background:#fff}
+.drow button.pri{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.hist{max-height:50vh;overflow-y:auto;margin-top:8px}
+.hist div{padding:10px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:14px}
+.hist div:hover{background:var(--accent-soft)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#5a4a50;color:#fff;padding:11px 20px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9}
+.toast.show{opacity:.95}
+.print-head{display:none}
+
+/* 図 */
+.diagram svg{width:100%;height:auto;display:block;border-radius:14px}
+.diagram h3{margin:0 0 8px;font-size:15px;color:#b06b79}
+.legend{font-size:12px;color:var(--sub);display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:4px;border-radius:2px}
+
+/* iPad（縦・横）向け */
+@media (max-width:1180px){
+  .wrap{padding:8px}
+  table.chart{min-width:0}
+  table.chart td{font-size:13px;height:32px}
+  td.site span.v{width:19px;height:19px}
+  .bottom{grid-template-columns:minmax(230px,.8fr) minmax(400px,1.4fr);gap:12px}
+  .pad{grid-template-rows:repeat(4,68px)}
+}
+@media (max-width:860px){
+  table.chart td{font-size:12px;height:34px}
+  table.chart td.lab{font-size:9px}
+  table.chart td.tno{font-size:15px}
+  td.site span.v{width:17px;height:17px}
+  .tabs button{min-width:0;flex:1;font-size:15px;padding:12px 4px}
+  .bottom{grid-template-columns:1fr}
+  .bottom>div:first-child{order:2}
+  .pad{order:1;grid-template-rows:repeat(4,72px)}
+}
+@media (hover:none){table.chart td.site,table.chart td.tno{cursor:default}}
+
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  html,body{background:#fff}
+  .noprint{display:none!important}
+  .panel{padding:0;margin:0 0 4mm;border:0;box-shadow:none}
+  .gridwrap{border:0}
+  .wrap{max-width:none;padding:0}
+  .print-head{display:block;font-size:13px;margin-bottom:3mm}
+  .print-head b{font-size:16px}
+  table.chart{min-width:0}
+  table.chart td{height:20px;font-size:11px}
+  table.chart td.tno{height:22px;font-size:13px}
+  td.site.cursor{outline:none;background:#fff}
+  td.site span.v{width:16px;height:16px}
+  .bottom{display:block}
+  .score{max-width:none;margin-bottom:3mm}
+  .score td,.score th{padding:2px 6px;font-size:12px}
+  .view{display:block!important}
+  .diagram{page-break-before:always}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 見出し -->
+  <div class="panel noprint">
+    <div class="head">
+      <div class="badge" id="badge">ポケット6</div>
+      <span class="trial">お試し版：患者データは入れません・保存しません</span>
+      <div class="psearch">
+        <label>患者（番号・氏名・カナで検索）<input id="pq" placeholder="例：55／そが／曽我" autocomplete="off"></label>
+        <div class="plist" id="plist"></div>
+      </div>
+      <div class="pcur"><span id="pidShow">未選択</span><b id="pnameShow"></b>
+        <input type="hidden" id="pid"><input type="hidden" id="pname"></div>
+      <label>検査日<input type="date" id="pdate"></label>
+      <label>検査者<select id="pexam"></select></label>
+      <label>検査区分<select id="ptype"><option>基本検査</option><option>再検査</option><option>その他の検査</option></select></label>
+      <label>方式<span class="seg"><button id="m6" class="on">6点法</button><button id="m4">4点法</button></span></label>
+      <span class="spacer"></span>
+      <button class="tbtn" id="btnHist">履歴</button>
+      <button class="tbtn" id="btnPrint">印刷・PDF</button>
+      <button class="tbtn" id="btnSet">設定</button>
+    </div>
+    <div class="now">
+      <button class="mic" id="mic">● 音声入力 開始</button>
+      <span class="lvl"><i id="lvl"></i></span><span class="vstate" id="vstate"></span>
+      <div class="pos" id="pos"></div>
+      <div class="heard" id="heard">「右上7番 頬側 3 2 4」「出血」「左下6番 動揺1」のように話してください。</div>
+    </div>
+    <div class="dictbox" id="dictbox">
+      <div class="dicthint">⌨️ キーボードの<b>マイク🎙</b>を押して話してください（パソコンは Windows：Windowsキー＋H、Mac：fnキーを2回）。話した内容は自動でチャートに入ります（止めるときは「完了」）。</div>
+      <textarea id="dict" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="ここに音声入力の文字が入ります"></textarea>
+    </div>
+  </div>
+
+  <!-- 画面の切り替え -->
+  <nav class="nav noprint" id="nav">
+    <button data-view="exam" class="on">🦷 検査入力</button>
+    <button data-view="dia">📈 チャート図</button>
+    <button data-view="karte">📋 サブカルテ</button>
+  </nav>
+
+  <!-- 印刷用の見出し -->
+  <div class="print-head" id="printHead"></div>
+
+  <!-- 数字の表 -->
+  <div class="panel view on" data-v="exam">
+    <div class="gridwrap"><table class="chart" id="chart"></table></div>
+
+    <div class="tabs noprint" id="tabs">
+      <button data-tab="mob">動揺度</button>
+      <button data-tab="pd" class="on" id="tabPd">ポケット6</button>
+      <button data-tab="pl">プラーク</button>
+      <button data-tab="rec" id="tabRec">歯肉退縮6</button>
+      <button data-tab="furc">分岐部</button>
+    </div>
+
+    <div class="bottom">
+      <div>
+        <table class="score">
+          <tr><th colspan="2">スコア</th></tr>
+          <tr><td>ポケット平均</td><td class="n" id="sAvg">-</td></tr>
+          <tr><td>4mm以上ポケット率</td><td class="n" id="sDeep">-</td></tr>
+          <tr><td>出血率（BOP）</td><td class="n" id="sBop">-</td></tr>
+          <tr><td>プラークスコア</td><td class="n" id="sPl">-</td></tr>
+          <tr><td>現在歯数 ／ 動揺歯数</td><td class="n" id="sTeeth">-</td></tr>
+        </table>
+        <div class="note">4mm以上ポケットは<b>赤字</b>、出血は赤丸、排膿は黄色、歯石は青の下線、プラークは右上の紫の印で表示</div>
+        <div class="side-btns noprint">
+          <button id="kPrim">乳歯</button>
+          <button id="kMiss">欠損</button>
+        </div>
+        <div class="log noprint" id="log"></div>
+        <div class="typein noprint">
+          <input id="typed" placeholder="文字で入力もできます（例：右下6番 舌側 5 4 6 出血）">
+          <button class="tbtn" id="typedGo">入力</button>
+        </div>
+      </div>
+
+      <div class="pad noprint" id="pad">
+        <span class="gap"></span>
+        <button class="k-bop" data-k="bop"><span>出血</span></button>
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+        <button class="tall" data-k="fwd">進む</button>
+        <button class="tall save" data-k="save">保存</button>
+
+        <span class="gap"></span>
+        <button class="k-calc" data-k="calc">歯石</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+
+        <button class="small" data-k="undo">↶<br>元に戻す</button>
+        <button class="k-pus" data-k="pus">排膿</button>
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button class="tall" data-k="back">戻る</button>
+        <button class="tall save" data-k="finish">終了</button>
+
+        <button class="small" data-k="clear">クリア</button>
+        <button class="small" data-k="prev">前回値<br>コピー</button>
+        <button data-k="bulk" id="kBulk">一括</button>
+        <button data-k="0">0</button><button data-k="plus10" id="kPlus">+10</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- サブカルテ -->
+  <div class="panel view" data-v="karte" id="kpanel">
+    <div class="kh">
+      <h3>サブカルテ</h3>
+      <span class="who" id="kwho">患者番号を入れて「読込」を押してください</span>
+      <span class="spacer"></span>
+      <button class="tbtn noprint" id="kLoad">読込</button>
+      <button class="tbtn noprint" id="kPlanEdit">治療計画を編集</button>
+    </div>
+    <div class="steps" id="ksteps"></div>
+    <div class="nextbox" id="knext" style="display:none"></div>
+
+    <div class="kform noprint" id="kform">
+      <label>処置日<input type="date" id="kdate"></label>
+      <label>処置<select id="kproc"></select></label>
+      <label>担当<select id="kstaff"></select></label>
+      <label class="wide">部位
+        <input id="karea" placeholder="例：全顎、右上、7〜4">
+        <span class="chips" id="kareaChips"></span>
+      </label>
+      <label class="wide">内容・メモ
+        <textarea id="kmemo" placeholder="処置内容、患者さんの様子、TBIの内容など"></textarea>
+        <button type="button" class="memomic" id="kmemoMic">● 声でメモ</button>
+      </label>
+      <label class="wide">次回の処置予定
+        <input id="knextIn" placeholder="次回予定">
+        <span class="chips" id="knextChips"></span>
+      </label>
+    </div>
+    <div class="kbtns noprint">
+      <button class="tbtn" id="kCancel" style="display:none">編集をやめる</button>
+      <button class="tbtn pri" id="kSave">処置を記録</button>
+    </div>
+
+    <table class="krec" id="krec"></table>
+  </div>
+
+  <!-- 歯の図 -->
+  <div class="panel diagram view" data-v="dia">
+    <h3>歯周チャート図</h3>
+    <div id="diagram"></div>
+    <div class="legend">
+      <span><i style="background:#e5484d"></i>歯肉の位置</span>
+      <span><i style="background:#7a6a70"></i>ポケットの底</span>
+      <span><i style="background:rgba(238,127,147,.35);height:10px"></i>ポケット</span>
+      <span><b style="color:#e5484d">▲</b> 出血　<b style="color:#e9a93a">●</b> 排膿　▼ 根分岐部病変（数字は度数）</span>
+    </div>
+  </div>
+</div>
+
+<!-- 設定 -->
+<dialog id="dlgSet">
+  <h2>設定</h2>
+  <div id="keyState" style="font-size:14px"></div>
+  <label>Gemini APIキー（変更するときだけ入力）</label>
+  <input id="setKey" type="password" autocomplete="off" placeholder="AIza…">
+  <label>Geminiのモデル名</label>
+  <input id="setModel">
+  <span id="setExamWrap"><label>検査者（「、」区切り）</label>
+  <input id="setExam"></span>
+  <div id="sheetLink" style="margin-top:10px;font-size:14px"></div>
+  <div class="drow">
+    <button id="setTest">接続テスト</button>
+    <button id="setClose">閉じる</button>
+    <button class="pri" id="setSave">保存</button>
+  </div>
+</dialog>
+
+<!-- 治療計画の編集 -->
+<dialog id="dlgPlan">
+  <h2>治療計画の編集</h2>
+  <div style="font-size:13px;color:var(--sub)">1行に1つずつ、行う順に書いてください。</div>
+  <textarea id="planText" rows="10" style="margin-top:8px"></textarea>
+  <div class="chips" id="planChips" style="margin-top:6px"></div>
+  <div class="drow">
+    <button id="planReset">標準に戻す</button>
+    <button id="planClose">閉じる</button>
+    <button class="pri" id="planSave">保存</button>
+  </div>
+</dialog>
+
+<!-- 履歴 -->
+<dialog id="dlgHist">
+  <h2>過去の検査</h2>
+  <div class="typein"><input id="histQ" placeholder="患者番号か氏名で検索"><button class="tbtn" id="histGo">検索</button></div>
+  <div class="hist" id="histList"></div>
+  <div class="drow"><button id="histClose">閉じる</button></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ───────── 基本データ ───────── */
+var UPPER=[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+var LOWER=[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+// 読み上げ順：上顎頬側(右→左) → 上顎口蓋側(左→右) → 下顎頬側(左→右) → 下顎舌側(右→左)
+var GROUPS=[
+  {jaw:'U',side:'b',teeth:UPPER,dir:1,label:'頬側'},
+  {jaw:'U',side:'l',teeth:UPPER.slice().reverse(),dir:-1,label:'口蓋側'},
+  {jaw:'L',side:'b',teeth:LOWER.slice().reverse(),dir:-1,label:'頬側'},
+  {jaw:'L',side:'l',teeth:LOWER,dir:1,label:'舌側'}
+];
+var TOOTH_ORDER=UPPER.concat(LOWER.slice().reverse());
+var FURC_TEETH=[18,17,16,14,24,26,27,28,48,47,46,36,37,38];
+var QNAME={1:'右上',2:'左上',3:'左下',4:'右下'};
+var PRIM='ABCDE';
+var SITE_TABS={pd:1,rec:1,pl:1};
+
+function quad(t){return Math.floor(t/10);}
+function jawOf(t){var q=quad(t);return (q===1||q===2)?'U':'L';}
+function validTooth(t){var q=quad(t),n=t%10;return q>=1&&q<=4&&n>=1&&n<=8;}
+function isRightSide(t){var q=quad(t);return q===1||q===4;}
+function nameToIdx(t,name){
+  if(name==='center')return 1;
+  if(name==='distal')return isRightSide(t)?0:2;
+  if(name==='mesial')return isRightSide(t)?2:0;
+  return null;
+}
+function idxName(t,idx,side){
+  if(S.mode===4&&side==='l')return '中央';
+  if(idx===1)return '中央';
+  var left=isRightSide(t);
+  return (idx===0)===left?'遠心':'近心';
+}
+function toothLabel(t){
+  var tt=S.teeth[t];var n=t%10;
+  return QNAME[quad(t)]+(tt&&tt.primary&&n<=5?PRIM[n-1]:n+'番');
+}
+function sideLabel(t,side){return side==='b'?'頬側':(jawOf(t)==='U'?'口蓋側':'舌側');}
+function arr3(v){return [v,v,v];}
+function newTooth(){
+  return {missing:false,primary:false,mob:null,furc:null,
+    pd:{b:arr3(null),l:arr3(null)},rec:{b:arr3(null),l:arr3(null)},
+    bop:{b:arr3(false),l:arr3(false)},pl:{b:arr3(false),l:arr3(false)},
+    pus:{b:arr3(false),l:arr3(false)},calc:{b:arr3(false),l:arr3(false)}};
+}
+function today(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10);}
+
+var S={mode:6,tab:'pd',teeth:{},cur:{g:0,t:0,s:0},tcur:0,last:null,plus10:false,bulk:false,
+  patientId:'',patientName:'',date:today(),examiner:'',examId:null};
+function resetTeeth(){S.teeth={};UPPER.concat(LOWER).forEach(function(t){S.teeth[t]=newTooth();});}
+resetTeeth();
+
+/* ───────── 入力位置（カーソル） ───────── */
+function siteOrder(g){
+  if(S.mode===4&&g.side==='l')return [1];
+  return g.dir>0?[0,1,2]:[2,1,0];
+}
+function curInfo(){
+  var g=GROUPS[S.cur.g];if(!g)return null;
+  var tooth=g.teeth[S.cur.t];var ord=siteOrder(g);
+  if(S.cur.s>=ord.length)S.cur.s=ord.length-1;
+  return {g:g,tooth:tooth,side:g.side,idx:ord[S.cur.s]};
+}
+function skipMissing(dir){
+  while(S.cur.g>=0&&S.cur.g<4&&S.teeth[GROUPS[S.cur.g].teeth[S.cur.t]].missing){
+    if(dir>=0){S.cur.t++;S.cur.s=0;if(S.cur.t>=16){S.cur.t=0;S.cur.g++;}}
+    else{S.cur.t--;if(S.cur.t<0){S.cur.g--;if(S.cur.g<0){S.cur={g:0,t:0,s:0};return skipMissing(1);}S.cur.t=15;}
+      S.cur.s=siteOrder(GROUPS[S.cur.g]).length-1;}
+  }
+}
+function stepFwd(){
+  if(S.cur.g>=4)return;
+  var ord=siteOrder(GROUPS[S.cur.g]);
+  S.cur.s++;
+  if(S.cur.s>=ord.length){S.cur.s=0;S.cur.t++;if(S.cur.t>=16){S.cur.t=0;S.cur.g++;}}
+  skipMissing(1);
+}
+function stepBack(){
+  if(S.cur.g>=4){S.cur={g:3,t:15,s:siteOrder(GROUPS[3]).length-1};skipMissing(-1);return;}
+  S.cur.s--;
+  if(S.cur.s<0){S.cur.t--;if(S.cur.t<0){S.cur.g--;if(S.cur.g<0){S.cur={g:0,t:0,s:0};return;}S.cur.t=15;}
+    S.cur.s=siteOrder(GROUPS[S.cur.g]).length-1;}
+  skipMissing(-1);
+}
+function nextTooth(){
+  if(S.cur.g>=4)return;
+  S.cur.s=0;S.cur.t++;if(S.cur.t>=16){S.cur.t=0;S.cur.g++;}
+  skipMissing(1);
+}
+function groupIndex(tooth,side){
+  for(var i=0;i<4;i++){if(GROUPS[i].jaw===jawOf(tooth)&&GROUPS[i].side===side)return i;}
+  return 0;
+}
+function moveTo(tooth,side){
+  if(!validTooth(tooth))return;
+  if(!side){var ci=curInfo();side=(ci&&jawOf(ci.tooth)===jawOf(tooth))?ci.side:'b';}
+  var gi=groupIndex(tooth,side);
+  S.cur={g:gi,t:GROUPS[gi].teeth.indexOf(tooth),s:0};
+  var tl=toothList();var k=tl.indexOf(tooth);if(k>=0)S.tcur=k;
+}
+// 歯ごとに入力するタブ（動揺度・分岐部）用
+function toothList(){return S.tab==='furc'?FURC_TEETH.filter(function(t){return true;}).sort(function(a,b){return TOOTH_ORDER.indexOf(a)-TOOTH_ORDER.indexOf(b);}):TOOTH_ORDER;}
+function curTooth(){
+  var tl=toothList();
+  if(S.tcur>=tl.length)return null;
+  return tl[S.tcur];
+}
+function tStep(dir){
+  var tl=toothList();var i=S.tcur;
+  do{i+=dir;}while(i>=0&&i<tl.length&&S.teeth[tl[i]].missing);
+  if(i<0)i=0;if(i>tl.length)i=tl.length;
+  S.tcur=i;
+}
+
+/* ───────── 元に戻す ───────── */
+var HIST=[];
+function snap(){HIST.push(JSON.stringify({teeth:S.teeth,cur:S.cur,tcur:S.tcur,last:S.last}));if(HIST.length>200)HIST.shift();}
+function undo(){
+  var h=HIST.pop();if(!h){toast('これ以上戻せません');return false;}
+  var o=JSON.parse(h);S.teeth=o.teeth;S.cur=o.cur;S.tcur=o.tcur;S.last=o.last;return true;
+}
+
+/* ───────── 値の書き込み ───────── */
+function rememberLast(tooth,side,idx){
+  if(S.last&&S.last.tooth===tooth&&S.last.side===side){if(S.last.idxs.indexOf(idx)<0)S.last.idxs.push(idx);}
+  else S.last={tooth:tooth,side:side,idxs:[idx]};
+}
+function putSite(field,v){
+  var ci=curInfo();if(!ci){toast('最後まで入力しました');return false;}
+  var t=S.teeth[ci.tooth];
+  if(field==='pl')t.pl[ci.side][ci.idx]=!!v;
+  else t[field][ci.side][ci.idx]=v;
+  rememberLast(ci.tooth,ci.side,ci.idx);
+  stepFwd();
+  return true;
+}
+function fillNumbers(field,nums){
+  nums.forEach(function(n){putSite(field,n);});
+}
+function putTooth(field,v){
+  var t=curTooth();if(t==null){toast('最後まで入力しました');return;}
+  S.teeth[t][field]=v;tStep(1);
+}
+function lastIdxs(){
+  if(S.last)return S.last;
+  var ci=curInfo();if(!ci)return null;
+  return {tooth:ci.tooth,side:ci.side,idxs:[ci.idx]};
+}
+
+/* ───────── 音声：その場で解析できる簡単な発言 ───────── */
+var KANJI={'〇':0,'零':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+function normalize(text){
+  var t=String(text||'').replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-65248);});
+  // 「十」を含む漢数字は1つの数（例：十一 → 11）
+  t=t.replace(/([一二三四五六七八九])百(?:([一二三四五六七八九])?十)?([一二三四五六七八九])?/g,function(m,a,b,c){
+    return ' '+KANJI[a]+' '+(b?KANJI[b]:(m.indexOf('十')>=0?1:0))+' '+(c?KANJI[c]:0)+' ';});
+  t=t.replace(/([一二三四五六七八九])?十([一二三四五六七八九])?/g,function(m,a,b){
+    return ' §'+((a?KANJI[a]:1)*10+(b?KANJI[b]:0))+' ';});
+  t=t.replace(/[〇零一二三四五六七八九]/g,function(c){return ' '+KANJI[c]+' ';});
+  return t;
+}
+// 数字の読み（さん・に・よん…）を数字に直す。文全体が数字の読みだけのときに限る
+var NUMREAD=[['じゅう','十'],['きゅう','9'],['なな','7'],['しち','7'],['はち','8'],['よん','4'],['ろく','6'],['さん','3'],['いち','1'],['ぜろ','0'],['れい','0'],['ご','5'],['に','2'],['し','4'],['く','9']];
+function readingToNum(text){
+  var h=String(text||'').replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);});
+  var bare=h.replace(/[\s、。,.・]|みり|ミリ/g,'');
+  if(!bare)return text;
+  var re=new RegExp('^(?:'+NUMREAD.map(function(x){return x[0];}).join('|')+')+$');
+  if(!re.test(bare))return text;
+  var out='',i=0;
+  while(i<bare.length){
+    for(var k=0;k<NUMREAD.length;k++){var r=NUMREAD[k][0];if(bare.substr(i,r.length)===r){out+=' '+NUMREAD[k][1]+' ';i+=r.length;break;}}
+  }
+  return out;
+}
+// よくある聞き間違いを直す（短い言葉だけ）
+var HOMO=[[/^(出欠|出決|出けつ|しゅっけつ|シュッケツ|出血あり|出血有り)$/,'出血'],[/^(背嚢|はいのう|ハイノウ|排膿あり)$/,'排膿'],
+  [/^(史跡|歯跡|指石|しせき|シセキ|歯石あり)$/,'歯石'],[/^(結尊|欠尊|けっそん|ケッソン|欠損歯)$/,'欠損'],[/^(ぷらーく|プラークあり)$/,'プラーク']];
+function localParse(text){
+  text=readingToNum(text);
+  var w0=String(text).replace(/[\s、。,.・]/g,'');
+  for(var hi=0;hi<HOMO.length;hi++){if(HOMO[hi][0].test(w0)){text=HOMO[hi][1];break;}}
+  var t=normalize(text);
+  var bare=t.replace(/[\s、。,.・]|ミリ|mm|ｍｍ/gi,'');
+  if(/^[§\d]+$/.test(bare)){
+    var nums=[];
+    t.split(/[\s、。,.・]+/).forEach(function(tok){
+      tok=tok.replace(/ミリ|mm|ｍｍ/gi,'');if(!tok)return;
+      if(tok.charAt(0)==='§'){nums.push(parseInt(tok.slice(1),10));return;}
+      if(tok==='10'){nums.push(10);return;}
+      tok.split('').forEach(function(c){nums.push(parseInt(c,10));});
+    });
+    return {type:'nums',nums:nums};
+  }
+  var w=bare;
+  if(/^(出血|出血あり|ブリーディング|bop|ビーオーピー)$/i.test(w))return {type:'flag',f:'bop'};
+  if(/^(排膿|排膿あり|膿|うみ)$/.test(w))return {type:'flag',f:'pus'};
+  if(/^(歯石|歯石あり|しせき)$/.test(w))return {type:'flag',f:'calc'};
+  if(/^(プラーク|プラークあり)$/.test(w))return {type:'flag',f:'pl'};
+  if(/^(欠損|けっそん)$/.test(w))return {type:'missing'};
+  if(/^(取り消し|取消|取り消す|戻して|間違い|間違えた|元に戻す|今のなし)$/.test(w))return {type:'undo'};
+  if(/^(次|次の歯|スキップ|飛ばして)$/.test(w))return {type:'skip'};
+  return null;
+}
+
+/* ───────── 解析結果を反映 ───────── */
+function sideCode(s){return s==='buccal'?'b':(s==='lingual'?'l':null);}
+function resolveSites(a){
+  var tooth=validTooth(a.tooth)?a.tooth:(S.last?S.last.tooth:(curInfo()||{}).tooth);
+  if(!tooth)return null;
+  var side=sideCode(a.side);
+  if(!side)side=(S.last&&S.last.tooth===tooth)?S.last.side:((curInfo()&&jawOf(curInfo().tooth)===jawOf(tooth))?curInfo().side:'b');
+  var g=GROUPS[groupIndex(tooth,side)];var ord=siteOrder(g);
+  var sites=a.sites||[];var idxs=[];
+  if(!sites.length||sites.indexOf('last')>=0){
+    idxs=(S.last&&S.last.tooth===tooth&&S.last.side===side)?S.last.idxs.slice():ord.slice();
+  }else{
+    sites.forEach(function(s){
+      var i=null;
+      if(s==='all'){idxs=idxs.concat(ord);return;}
+      if(s==='first')i=ord[0];else if(s==='second')i=ord[1];else if(s==='third')i=ord[2];
+      else i=nameToIdx(tooth,s);
+      if(i!=null&&ord.indexOf(i)>=0)idxs.push(i);
+    });
+  }
+  if(!idxs.length)idxs=ord.slice();
+  return {tooth:tooth,side:side,idxs:idxs};
+}
+function targetTooth(a){
+  if(validTooth(a.tooth))return a.tooth;
+  if(!SITE_TABS[S.tab]&&curTooth()!=null)return curTooth();
+  if(S.last)return S.last.tooth;
+  var ci=curInfo();return ci?ci.tooth:null;
+}
+var FLAGMAP={bop:'bop',plaque:'pl',pus:'pus',calculus:'calc'};
+function applyActions(actions){
+  var notes=[];
+  if(!actions||!actions.length)return notes;
+  if(actions.length===1&&actions[0].kind==='undo'){if(undo())notes.push('元に戻しました');return notes;}
+  snap();
+  actions.forEach(function(a){
+    var k=a.kind,r,t;
+    if(k==='pocket'||k==='recession'){
+      if(validTooth(a.tooth)){moveTo(a.tooth,sideCode(a.side));S.teeth[a.tooth].missing=false;}
+      else if(sideCode(a.side)&&curInfo()){moveTo(curInfo().tooth,sideCode(a.side));}
+      var vals=(a.values||[]).filter(function(v){return v>=0&&v<=20;});
+      fillNumbers(k==='pocket'?'pd':'rec',vals);
+      notes.push((k==='pocket'?'ポケット ':'退縮 ')+vals.join('・'));
+    }else if(FLAGMAP[k]){
+      r=resolveSites(a);if(!r)return;
+      r.idxs.forEach(function(i){S.teeth[r.tooth][FLAGMAP[k]][r.side][i]=true;});
+      notes.push(toothLabel(r.tooth)+' '+{bop:'出血',plaque:'プラーク',pus:'排膿',calculus:'歯石'}[k]);
+    }else if(k==='clear'){
+      r=resolveSites(a);if(!r)return;
+      var f=a.value===2?'pl':(a.value===3?'pus':(a.value===4?'calc':'bop'));
+      r.idxs.forEach(function(i){S.teeth[r.tooth][f][r.side][i]=false;});
+      notes.push(toothLabel(r.tooth)+' 取り消し');
+    }else if(k==='mobility'||k==='furcation'){
+      t=targetTooth(a);if(!t)return;
+      var v=Math.max(0,Math.min(3,a.value||0));
+      S.teeth[t][k==='mobility'?'mob':'furc']=v;
+      notes.push(toothLabel(t)+(k==='mobility'?' 動揺度':' 分岐部')+v);
+    }else if(k==='missing'||k==='present'){
+      t=validTooth(a.tooth)?a.tooth:(curInfo()||{}).tooth;if(!t)return;
+      S.teeth[t].missing=(k==='missing');
+      if(k==='missing'){skipMissing(1);}
+      notes.push(toothLabel(t)+(k==='missing'?' 欠損':' 欠損取り消し'));
+    }else if(k==='primary'){
+      t=validTooth(a.tooth)?a.tooth:(curInfo()||{}).tooth;if(!t)return;
+      S.teeth[t].primary=true;notes.push(toothLabel(t)+'（乳歯）');
+    }else if(k==='move'){
+      if(validTooth(a.tooth))moveTo(a.tooth,sideCode(a.side));
+      else if(sideCode(a.side)&&curInfo())moveTo(curInfo().tooth,sideCode(a.side));
+      notes.push('移動');
+    }else if(k==='skip'){
+      if(SITE_TABS[S.tab])nextTooth();else tStep(1);notes.push('次の歯へ');
+    }else if(k==='undo'){
+      HIST.pop();undo();notes.push('元に戻しました');
+    }
+  });
+  return notes;
+}
+function applyLocal(p){
+  if(p.type==='undo'){return undo()?['元に戻しました']:[];}
+  snap();
+  if(p.type==='nums'){
+    if(S.tab==='mob'||S.tab==='furc'){p.nums.forEach(function(n){putTooth(S.tab==='mob'?'mob':'furc',Math.min(3,n));});}
+    else fillNumbers(S.tab==='rec'?'rec':'pd',p.nums);
+    return [p.nums.join('・')];
+  }
+  if(p.type==='flag'){
+    var r=lastIdxs();if(!r)return [];
+    r.idxs.forEach(function(i){S.teeth[r.tooth][p.f][r.side][i]=true;});
+    return [toothLabel(r.tooth)+' '+{bop:'出血',pus:'排膿',calc:'歯石',pl:'プラーク'}[p.f]];
+  }
+  if(p.type==='missing'){
+    var t=SITE_TABS[S.tab]?(curInfo()||{}).tooth:curTooth();if(!t)return [];
+    S.teeth[t].missing=true;skipMissing(1);return [toothLabel(t)+' 欠損'];
+  }
+  if(p.type==='skip'){if(SITE_TABS[S.tab])nextTooth();else tStep(1);return ['次の歯へ'];}
+  return [];
+}
+
+/* ───────── スコア ───────── */
+function summary(){
+  var n=0,sum=0,deep=0,bop=0,plq=0,tot=0,teeth=0,mobile=0;
+  UPPER.concat(LOWER).forEach(function(k){
+    var t=S.teeth[k];if(t.missing)return;teeth++;
+    if(t.mob>=1)mobile++;
+    ['b','l'].forEach(function(s){
+      var idxs=(S.mode===4&&s==='l')?[1]:[0,1,2];
+      idxs.forEach(function(i){
+        tot++;if(t.pl[s][i])plq++;
+        var v=t.pd[s][i];if(v==null)return;
+        n++;sum+=v;if(v>=4)deep++;if(t.bop[s][i])bop++;
+      });
+    });
+  });
+  function pct(a,b){return b?Math.round(a/b*100):0;}
+  return {teeth:teeth,mobile:mobile,sites:n,
+    avgPd:n?Math.round(sum/n*10)/10:'',deepRate:n?pct(deep,n):'',bopRate:n?pct(bop,n):'',pcr:tot?pct(plq,tot):''};
+}
+
+/* ───────── 画面の描画 ───────── */
+var $=function(id){return document.getElementById(id);};
+function siteCell(tooth,side,idx,mid){
+  var t=S.teeth[tooth];var cls=['site'];if(mid)cls.push('mid');
+  var na=S.mode===4&&side==='l'&&idx!==1;
+  if(na){cls.push('na');return '<td class="'+cls.join(' ')+'"></td>';}
+  if(t.missing){cls.push('missing');return '<td class="'+cls.join(' ')+'" data-t="'+tooth+'" data-s="'+side+'" data-i="'+idx+'"></td>';}
+  var ci=curInfo();
+  if(SITE_TABS[S.tab]&&ci&&ci.tooth===tooth&&ci.side===side&&ci.idx===idx)cls.push('cursor');
+  var v=S.tab==='rec'?t.rec[side][idx]:t.pd[side][idx];
+  if(S.tab!=='rec'&&v!=null&&v>=4)cls.push('deep');
+  if(t.bop[side][idx])cls.push('bop');
+  if(t.pus[side][idx])cls.push('pus');
+  if(t.calc[side][idx])cls.push('calc');
+  if(t.pl[side][idx])cls.push(S.tab==='pl'?'plq':'plmark');
+  return '<td class="'+cls.join(' ')+'" data-t="'+tooth+'" data-s="'+side+'" data-i="'+idx+'"><span class="v">'+(v==null?'':v)+'</span></td>';
+}
+function siteRow(teeth,side,label){
+  var h='<tr><td class="lab">'+label+'</td>';
+  teeth.forEach(function(tooth,k){for(var i=0;i<3;i++)h+=siteCell(tooth,side,i,k===8&&i===0);});
+  return h+'<td class="lab">'+label+'</td></tr>';
+}
+function toothRow(teeth){
+  var ci=curInfo();var ct=curTooth();
+  var h='<tr><td class="lab"></td>';
+  teeth.forEach(function(tooth,k){
+    var t=S.teeth[tooth];var cls=['tno'];if(k===8)cls.push('mid');
+    if(t.missing)cls.push('miss');
+    if(!SITE_TABS[S.tab]&&ct===tooth)cls.push('cur');
+    else if(SITE_TABS[S.tab]&&ci&&ci.tooth===tooth)cls.push('curlite');
+    var n=tooth%10;var lab=(t.primary&&n<=5)?PRIM[n-1]:n;
+    var m=t.mob!=null?'<small class="m">M'+t.mob+'</small>':'';
+    var f=t.furc?'<small class="f">F'+t.furc+'</small>':'';
+    h+='<td colspan="3" class="'+cls.join(' ')+'" data-tooth="'+tooth+'">'+m+lab+f+'</td>';
+  });
+  return h+'<td class="lab"></td></tr>';
+}
+function renderChart(){
+  var cols='<colgroup><col style="width:34px">';for(var i=0;i<48;i++)cols+='<col>';cols+='<col style="width:34px"></colgroup>';
+  var h=cols+siteRow(UPPER,'b','頬側')+siteRow(UPPER,'l','口蓋')+toothRow(UPPER)+
+    '<tr class="sep"><td colspan="50"></td></tr>'+
+    toothRow(LOWER)+siteRow(LOWER,'l','舌側')+siteRow(LOWER,'b','頬側');
+  $('chart').innerHTML=h;
+}
+function renderPos(){
+  var txt;
+  if(SITE_TABS[S.tab]){
+    var ci=curInfo();
+    txt=ci?('現在：'+toothLabel(ci.tooth)+' '+sideLabel(ci.tooth,ci.side)+' '+idxName(ci.tooth,ci.idx,ci.side)):'現在：最後まで入力しました';
+  }else{
+    var t=curTooth();
+    txt=t!=null?('現在：'+toothLabel(t)+'（'+(S.tab==='mob'?'動揺度':'分岐部')+'）'):'現在：最後まで入力しました';
+  }
+  if(S.plus10)txt+='　＋10';
+  if(S.bulk)txt+='　一括';
+  $('pos').textContent=txt;
+}
+function renderScore(){
+  var s=summary();
+  $('sAvg').textContent=s.avgPd===''?'-':s.avgPd+' mm';
+  $('sDeep').textContent=s.deepRate===''?'-':s.deepRate+' %';
+  $('sBop').textContent=s.bopRate===''?'-':s.bopRate+' %';
+  $('sPl').textContent=s.pcr===''?'-':s.pcr+' %';
+  $('sTeeth').textContent=s.teeth+' 本 ／ '+s.mobile+' 本';
+}
+function renderTabs(){
+  var lab=S.mode===6?'6':'4';
+  $('tabPd').textContent='ポケット'+lab;$('tabRec').textContent='歯肉退縮'+lab;
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(b){b.classList.toggle('on',b.dataset.tab===S.tab);});
+  var names={mob:'動揺度',pd:'ポケット'+lab,pl:'プラーク',rec:'歯肉退縮'+lab,furc:'分岐部'};
+  $('badge').textContent=names[S.tab];
+  $('m6').classList.toggle('on',S.mode===6);$('m4').classList.toggle('on',S.mode===4);
+  $('kPlus').classList.toggle('on',S.plus10);$('kBulk').classList.toggle('on',S.bulk);
+}
+function render(){renderTabs();renderChart();renderPos();renderScore();renderDiagram();renderPrintHead();saveDraft();}
+function renderPrintHead(){
+  $('printHead').innerHTML='<b>歯周検査</b>　患者番号 '+esc(S.patientId)+'　'+esc(S.patientName)+'　検査日 '+esc(S.date)+
+    '　検査者 '+esc(S.examiner)+'　'+S.mode+'点法　曽我歯科医院';
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+/* ───────── 歯の図（SVG） ───────── */
+var TW=44,LM=40,KMM=4;
+function toothShape(n,jaw){
+  var U=jaw==='U';
+  // 歯冠の幅・高さ、根の長さ（図の上での大きさ）
+  var w={1:U?34:22,2:U?26:23,3:U?29:27,4:27,5:27,6:U?39:41,7:U?36:38,8:U?33:35}[n];
+  var h={1:U?42:34,2:U?36:33,3:U?42:40,4:34,5:32,6:30,7:28,8:26}[n];
+  var L={1:U?56:52,2:U?54:54,3:U?72:66,4:U?56:58,5:U?56:58,6:U?52:54,7:U?50:50,8:U?44:44}[n];
+  var type=n<=2?'inc':n===3?'can':n<=5?'pm':'mol';
+  return {w:w,h:h,root:L,type:type,n:n,U:U};
+}
+// 点列をなめらかな閉じた曲線にする（Catmull-Rom）
+function smooth(pts){
+  var n=pts.length,dd='M'+pts[0][0].toFixed(1)+','+pts[0][1].toFixed(1);
+  for(var i=0;i<n;i++){
+    var p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    var c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6,c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6;
+    dd+=' C'+c1x.toFixed(1)+','+c1y.toFixed(1)+' '+c2x.toFixed(1)+','+c2y.toFixed(1)+' '+p2[0].toFixed(1)+','+p2[1].toFixed(1);
+  }
+  return dd+' Z';
+}
+// 歯冠の輪郭（頬側から見た形）。x：-0.5〜0.5、y：0＝歯頸部、1＝切縁・咬頭
+var CROWN={
+  inc:[[-.34,0],[-.43,.3],[-.49,.66],[-.47,.9],[-.36,1],[0,1.02],[.36,1],[.47,.9],[.49,.66],[.43,.3],[.34,0],[0,-.06]],
+  can:[[-.35,0],[-.46,.32],[-.48,.6],[-.36,.78],[-.16,.92],[0,1.03],[.16,.92],[.36,.78],[.48,.6],[.46,.32],[.35,0],[0,-.06]],
+  pm:[[-.34,0],[-.46,.34],[-.48,.66],[-.36,.86],[-.15,.96],[0,1.01],[.15,.96],[.36,.86],[.48,.66],[.46,.34],[.34,0],[0,-.05]],
+  mol:[[-.4,0],[-.49,.3],[-.5,.66],[-.44,.9],[-.3,1],[-.15,.97],[0,.9],[.15,.97],[.3,1],[.44,.9],[.5,.66],[.49,.3],[.4,0],[0,-.04]]
+};
+// 根の輪郭。y：0＝歯頸部、-1＝根尖
+var ROOT={
+  one:[[-.33,0],[-.33,-.3],[-.27,-.62],[-.15,-.88],[-.03,-1],[.06,-.97],[.17,-.82],[.27,-.56],[.32,-.28],[.33,0]],
+  two:[[-.42,0],[-.44,-.3],[-.41,-.62],[-.34,-.88],[-.25,-1],[-.17,-.93],[-.12,-.66],[-.06,-.42],[0,-.34],[.06,-.42],[.12,-.66],[.17,-.93],[.25,-1],[.34,-.88],[.41,-.62],[.44,-.3],[.42,0]]
+};
+function toothPath(cx,cej,d,sh,primary){
+  var s=primary?0.82:1,w=sh.w*s,h=sh.h*s,L=sh.root*s;
+  function map(arr,ln){return arr.map(function(p){return [cx+p[0]*w, cej+d*p[1]*(p[1]>=0?h:ln)];});}
+  // 左右の歯で向きをそろえる（近心側をやや大きく）
+  var crown=smooth(map(CROWN[sh.type],L));
+  var rtype=(sh.type==='mol')?'two':'one';
+  var rootPts=ROOT[rtype];
+  if(sh.type==='pm'&&sh.n===4&&sh.U)rootPts=ROOT.two; // 上顎第一小臼歯は2根
+  var root=smooth(map(rootPts,L).concat([]));
+  return {crown:crown,roots:[root]};
+}
+function panelSVG(teeth,jaw,side,y0){
+  // jaw U：歯冠が下、根が上（d=+1）／ L：歯冠が上、根が下（d=-1）
+  var d=jaw==='U'?1:-1;var cej=jaw==='U'?y0+95:y0+55;
+  var g='';
+  var boneY=jaw==='U'?y0+8:y0+55,boneH=87;
+  g+='<rect x="'+LM+'" y="'+(jaw==='U'?y0+8:y0+55)+'" width="'+(TW*16)+'" height="'+boneH+'" fill="url(#bone)"/>';
+  var segs=[],seg=[],marks='';
+  teeth.forEach(function(tooth,k){
+    var t=S.teeth[tooth];var cx=LM+k*TW+TW/2;var sh=toothShape(tooth%10,jaw);
+    if(t.missing){if(seg.length){segs.push(seg);seg=[];}return;}
+    var p=toothPath(cx,cej,d,sh,t.primary);
+    p.roots.forEach(function(rp){g+='<path d="'+rp+'" fill="url(#rootg)" stroke="#d2ac86" stroke-width="1.1"/>';});
+    g+='<path d="'+p.crown+'" fill="url(#enamel)" stroke="#b8a9ae" stroke-width="1.2"/>';
+    var idxs=[0,1,2];
+    idxs.forEach(function(i){
+      var pd=t.pd[side][i];if(pd==null)return;
+      var rec=t.rec[side][i]||0;
+      var x=cx+(i-1)*sh.w*0.38;
+      var ym=cej-d*rec*KMM, yb=ym-d*pd*KMM;
+      seg.push({x:x,ym:ym,yb:yb});
+      if(t.bop[side][i])marks+='<path d="M'+(x-4)+','+(ym+d*9)+' L'+(x+4)+','+(ym+d*9)+' L'+x+','+(ym+d*2)+' Z" fill="#e5484d"/>';
+      if(t.pus[side][i])marks+='<circle cx="'+x+'" cy="'+(ym+d*14)+'" r="3" fill="#e9a93a"/>';
+    });
+    if(t.furc&&side==='b'){
+      var fy=cej-d*16;
+      marks+='<path d="M'+(cx-6)+','+(fy-d*6)+' L'+(cx+6)+','+(fy-d*6)+' L'+cx+','+(fy+d*6)+' Z" fill="#7a6a70"/>'+
+        '<text x="'+(cx+8)+'" y="'+(fy-d*8)+'" font-size="10" fill="#5b9be6">'+t.furc+'</text>';
+    }
+  });
+  if(seg.length)segs.push(seg);
+  segs.forEach(function(sg){
+    if(sg.length<1)return;
+    var poly=sg.map(function(p){return p.x+','+p.ym;}).concat(sg.slice().reverse().map(function(p){return p.x+','+p.yb;}));
+    g+='<polygon points="'+poly.join(' ')+'" fill="rgba(238,127,147,.28)"/>';
+    g+='<polyline points="'+sg.map(function(p){return p.x+','+p.ym;}).join(' ')+'" fill="none" stroke="#e5484d" stroke-width="2.2" stroke-linejoin="round"/>';
+    g+='<polyline points="'+sg.map(function(p){return p.x+','+p.yb;}).join(' ')+'" fill="none" stroke="#7a6a70" stroke-width="1.6" stroke-linejoin="round"/>';
+  });
+  g+=marks;
+  var lab=side==='b'?'外側':'内側';
+  var ly=y0+70;
+  g+=vlabel(16,ly,lab)+vlabel(LM+TW*16+16,ly,lab);
+  g+='<rect x="'+LM+'" y="'+y0+'" width="'+(TW*16)+'" height="150" fill="none" stroke="#efdfdc"/>';
+  return g;
+}
+function vlabel(x,y,txt){
+  return '<text x="'+x+'" y="'+(y-8)+'" font-size="13" text-anchor="middle" fill="#9a8b90">'+txt.charAt(0)+'</text>'+
+    '<text x="'+x+'" y="'+(y+8)+'" font-size="13" text-anchor="middle" fill="#9a8b90">'+txt.charAt(1)+'</text>';
+}
+function numRow(teeth,y){
+  var g='<line x1="'+LM+'" y1="'+(y-12)+'" x2="'+(LM+TW*16)+'" y2="'+(y-12)+'" stroke="#efdfdc"/><line x1="'+LM+'" y1="'+(y+8)+'" x2="'+(LM+TW*16)+'" y2="'+(y+8)+'" stroke="#efdfdc"/>';
+  g+='<text x="16" y="'+(y+4)+'" font-size="13" text-anchor="middle" fill="#9a8b90">右</text><text x="'+(LM+TW*16+16)+'" y="'+(y+4)+'" font-size="13" text-anchor="middle" fill="#9a8b90">左</text>';
+  teeth.forEach(function(tooth,k){
+    var t=S.teeth[tooth];var n=tooth%10;var lab=(t.primary&&n<=5)?PRIM[n-1]:n;
+    var x=LM+k*TW+TW/2;
+    g+='<text x="'+x+'" y="'+(y+4)+'" font-size="14" text-anchor="middle" fill="'+(t.missing?'#d8cccf':'#6b5a60')+'">'+lab+'</text>';
+    if(t.mob)g+='<text x="'+(x+12)+'" y="'+(y+4)+'" font-size="9" fill="#9884e8">M'+t.mob+'</text>';
+  });
+  return g;
+}
+var DEFS='<defs>'+
+  '<linearGradient id="bone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbe9ec"/><stop offset="1" stop-color="#f6dde2"/></linearGradient>'+
+  '<linearGradient id="enamel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f3eeee"/><stop offset=".45" stop-color="#ffffff"/><stop offset="1" stop-color="#ece6e7"/></linearGradient>'+
+  '<linearGradient id="rootg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f1d6bb"/><stop offset=".5" stop-color="#fbe8d4"/><stop offset="1" stop-color="#ecceb0"/></linearGradient>'+
+  '</defs>';
+function renderDiagram(){
+  var W=LM*2+TW*16;
+  var svg='<svg viewBox="0 0 '+W+' 740" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">';
+  svg+='<rect x="0" y="0" width="'+W+'" height="740" fill="#ffffff"/>'+DEFS;
+  svg+=panelSVG(UPPER,'U','b',0);
+  svg+=numRow(UPPER,172);
+  svg+=panelSVG(UPPER,'U','l',192);
+  svg+=panelSVG(LOWER,'L','l',390);
+  svg+=numRow(LOWER,562);
+  svg+=panelSVG(LOWER,'L','b',582);
+  svg+='</svg>';
+  $('diagram').innerHTML=svg;
+}
+
+/* ───────── サーバー呼び出し ───────── */
+/* ───────── Gemini（このiPadに保存したキーで直接呼ぶ） ───────── */
+var GEM_DEFAULT='gemini-3.5-flash';
+function lsGet(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function gemKey(){return lsGet('gemKey');}
+function gemModel(){return lsGet('gemModel')||GEM_DEFAULT;}
+var GEM_SYS=[
+  'あなたは歯科医院の歯周検査で、術者が読み上げた日本語を構造化データに変換する係です。',
+  '歯番はFDI方式の2桁で答えてください。右上=1x、左上=2x、左下=3x、右下=4x。',
+  '例：「右上7番」=17、「左下6番」=36、「右下1番」=41、「ろく」=6。',
+  '面：頬側・唇側・バッカル・外側=buccal、口蓋側・舌側・リンガル・パラタル・内側=lingual。',
+  '部位：近心・メジアル=mesial、中央・真ん中=center、遠心・ディスタル=distal、全部=all。',
+  '「何番目」で部位を言われたら、読み上げ順（spoken）で 1番目=first、2番目=second、3番目=third とする。',
+  '',
+  'actions の kind の意味：',
+  ' pocket  … ポケット深さ。values に読み上げた順の数字（mm）。tooth・side が言われていなければ省略（0）。',
+  ' bop     … 出血（BOP）。sites に部位。部位の指定がなければ sites=["last"]（直前に入力した部位）。',
+  ' plaque  … プラーク付着。指定方法は bop と同じ。',
+  ' pus     … 排膿。指定方法は bop と同じ。',
+  ' calculus… 歯石。指定方法は bop と同じ。',
+  ' recession… 歯肉退縮（「退縮」「リセッション」）。values に読み上げた順の数字（mm）。',
+  ' clear   … 取り消し（「出血なし」など）。value=1出血、2プラーク、3排膿、4歯石。',
+  ' primary … 乳歯（「乳歯」「Eは乳歯」。乳歯A〜Eは1〜5番として tooth を答える）。',
+  ' mobility… 動揺度。value に 0〜3。',
+  ' furcation… 根分岐部病変。value に 0〜3（1度=1、2度=2、3度=3）。',
+  ' missing … 欠損（「欠損」「抜けてる」「ない」）。',
+  ' present … 欠損の取り消し（「ある」「欠損じゃない」）。',
+  ' move    … 指定の歯・面へ移動するだけ（「右下6番へ」「舌側に戻る」）。',
+  ' undo    … 直前の入力を取り消す（「取り消し」「戻して」「間違い」）。',
+  ' skip    … 今の歯を飛ばす（「次」「スキップ」）。',
+  ' none    … 検査と関係ない発言・雑談。',
+  '1つの発言に複数の指示があれば、話した順に actions に並べる。',
+  '発言は音声（または文字）で届く。歯科の歯周検査の読み上げとして最も自然な意味に解釈する。数字は「さん・に・よん」のように1桁ずつ読み上げられることが多い。',
+  '聞き間違いの例：出欠/出決→出血、背嚢/敗能→排膿、史跡/指石→歯石、童謡/動揺度→動揺、結尊→欠損、遠心/円心→遠心、近親/金新→近心、拘束/効率→頬側、舌足/下側→舌側、高外側/口蓋→口蓋側。その他も文脈で判断する。',
+  '数字の聞き間違い：「さん」「さ」=3、「よん」「し」「よ」=4、「ご」「後」「語」=5、「ろく」「6」=6、「なな」「しち」=7、「はち」=8、「に」「二」「似」=2、「いち」=1、「324」のような続いた数字は1桁ずつ（3,2,4）。ただし10以上の深さは「じゅう」「十」と言われたときだけ。ポケット深さは通常1〜15。',
+  '「右上の7番」「右上7」「7番右上」「うえ みぎ なな」なども同じ歯（17）。',
+  'tooth が言われていなければ 0、side が言われていなければ "none" にする。'
+].join('\n');
+var GEM_SCHEMA={type:'OBJECT',properties:{transcript:{type:'STRING'},actions:{type:'ARRAY',items:{type:'OBJECT',properties:{
+  kind:{type:'STRING',enum:['pocket','recession','bop','plaque','pus','calculus','clear','primary','mobility','furcation','missing','present','move','undo','skip','none']},
+  tooth:{type:'INTEGER'},side:{type:'STRING',enum:['buccal','lingual','none']},
+  sites:{type:'ARRAY',items:{type:'STRING',enum:['mesial','center','distal','all','first','second','third','last']}},
+  values:{type:'ARRAY',items:{type:'INTEGER'}},value:{type:'INTEGER'}},required:['kind']}}},required:['actions']};
+function ctxText(ctx){
+  return '今の入力位置：歯 '+(ctx&&ctx.tooth||'不明')+'、面 '+(ctx&&ctx.side==='lingual'?'口蓋側/舌側':'頬側')+'、方式 '+(ctx&&ctx.mode||6)+'点法';
+}
+function gemCall(parts){
+  var key=gemKey();
+  if(!key)return Promise.reject(new Error('右上の「設定」でGeminiのAPIキーを入れてください'));
+  var body={systemInstruction:{parts:[{text:GEM_SYS}]},contents:[{role:'user',parts:parts}],
+    generationConfig:{responseMimeType:'application/json',responseSchema:GEM_SCHEMA}};
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(gemModel())+':generateContent',
+    {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)})
+    .then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});},function(){throw new Error('通信できませんでした');})
+    .then(function(x){
+      if(!x.ok)throw new Error('Geminiエラー（'+x.status+'）：'+((x.j&&x.j.error&&x.j.error.message)||''));
+      var t='';try{t=x.j.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');}catch(e){throw new Error('Geminiから結果が返りませんでした');}
+      return JSON.parse(t);
+    });
+}
+// 以前のサーバー呼び出しの代わり（お試し版は文字の解析だけ）
+function run(fn,text,ctx){
+  if(fn==='parseUtterance')return gemCall([{text:ctxText(ctx)+'\n発言：「'+text+'」'}]);
+  return Promise.reject(new Error('お試し版では使えません（患者データは扱いません）'));
+}
+function errMsg(e){return (e&&e.message)?e.message:String(e);}
+
+/* ───────── 発言の処理 ───────── */
+var queue=Promise.resolve();
+function addLog(text,cls){
+  var d=document.createElement('div');if(cls)d.className=cls;d.textContent=text;
+  var l=$('log');l.insertBefore(d,l.firstChild);
+  while(l.childNodes.length>60)l.removeChild(l.lastChild);
+  return d;
+}
+function ctxForAI(){
+  var ci=curInfo();
+  return {tooth:ci?ci.tooth:(curTooth()||0),side:ci?(ci.side==='l'?'lingual':'buccal'):'buccal',mode:S.mode,tab:S.tab};
+}
+function handleUtterance(text){
+  text=String(text||'').trim();if(!text)return Promise.resolve();
+  $('heard').textContent='「'+text+'」';
+  var p=localParse(text);
+  if(p){
+    var notes=applyLocal(p);render();
+    addLog('「'+text+'」→ '+(notes.join('、')||'—'),'ok');
+    return Promise.resolve();
+  }
+  var line=addLog('「'+text+'」→ AIで解析中…','ai');
+  return run('parseUtterance',text,ctxForAI()).then(function(res){
+    var notes=applyActions(res&&res.actions);render();
+    line.className=notes.length?'ok':'ng';
+    line.textContent='「'+text+'」→ '+(notes.length?notes.join('、'):'検査の指示として読み取れませんでした');
+  }).catch(function(e){
+    line.className='ng';line.textContent='「'+text+'」→ '+errMsg(e);
+  });
+}
+function enqueue(text){queue=queue.then(function(){return handleUtterance(text);});}
+
+/* ───────── 音声認識 ───────── */
+var recog=null,listening=false;
+function micUI(){
+  $('mic').classList.toggle('on',listening);
+  $('mic').textContent=listening?'■ 音声入力 停止':'● 音声入力 開始';
+}
+function isIOS(){
+  var u=navigator.userAgent||'';
+  return /iPad|iPhone|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1);
+}
+var dictOn=false,dictDone=0,dictTimer=null;
+function startDict(){
+  dictOn=true;var t=$('dict');t.value='';dictDone=0;
+  $('dictbox').classList.add('on');t.focus();micUIDict();
+}
+function stopDict(){
+  flushDict();dictOn=false;$('dictbox').classList.remove('on');$('dict').blur();micUIDict();
+}
+function micUIDict(){
+  $('mic').classList.toggle('on',dictOn);
+  $('mic').textContent=dictOn?'■ 音声入力 終了':'● 音声入力 開始';
+}
+function flushDict(){
+  clearTimeout(dictTimer);
+  var v=$('dict').value;
+  if(v.length<dictDone)dictDone=0;
+  var add=v.slice(dictDone).trim();
+  dictDone=v.length;
+  if(!add)return;
+  // 句点・改行で区切って順に処理
+  add.split(/[。\n]+/).forEach(function(x){x=x.trim();if(x)enqueue(x);});
+  // 長くなったら空にする（入力が止まっている時だけ）
+  if(v.length>200){$('dict').value='';dictDone=0;}
+}
+var AC=null,micStream=null,proc=null,inSpeech=false,segBuf=[],preBuf=[],silentMs=0,speechMs=0,segMs=0,noise=0.01,pending=0;
+function vstate(t){$('vstate').textContent=t;}
+function startMic(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert('このブラウザではマイクが使えません。iPadはSafari、パソコンはChromeで開いてください。');return;}
+  if(!gemKey()){toast('右上の「設定」でGeminiのAPIキーを入れてください');openSettings();return;}
+  var Ctx=window.AudioContext||window.webkitAudioContext;
+  AC=new Ctx();if(AC.resume)AC.resume();
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(function(st){
+    micStream=st;
+    var src=AC.createMediaStreamSource(st);
+    proc=AC.createScriptProcessor(4096,1,1);
+    src.connect(proc);proc.connect(AC.destination);
+    proc.onaudioprocess=onAudio;
+    listening=true;inSpeech=false;segBuf=[];preBuf=[];micUI();vstate('聞いています');
+  }).catch(function(err){
+    listening=false;micUI();
+    alert('マイクが使えません（'+(err&&err.name||'')+'）。\n\nアドレス欄の「ぁあ」→「Webサイトの設定」→ マイクを「許可」にしてから、もう一度押してください。');
+  });
+}
+function onAudio(ev){
+  if(!listening)return;
+  var d=new Float32Array(ev.inputBuffer.getChannelData(0));
+  var sum=0;for(var i=0;i<d.length;i++)sum+=d[i]*d[i];
+  var rms=Math.sqrt(sum/d.length),ms=d.length/AC.sampleRate*1000;
+  var th=Math.max(0.012,noise*3);
+  var loud=rms>th;
+  $('lvl').style.width=Math.min(100,rms/0.15*100)+'%';
+  if(!inSpeech){
+    noise=noise*0.95+rms*0.05;
+    preBuf.push(d);if(preBuf.length>2)preBuf.shift();
+    if(loud){inSpeech=true;segBuf=preBuf.slice();segMs=ms*segBuf.length;speechMs=ms;silentMs=0;}
+    return;
+  }
+  segBuf.push(d);segMs+=ms;
+  if(loud){silentMs=0;speechMs+=ms;}else silentMs+=ms;
+  if(silentMs>=750||segMs>=12000){
+    var buf=segBuf;inSpeech=false;segBuf=[];preBuf=[];
+    if(speechMs>=250)sendAudio(buf,AC.sampleRate);
+  }
+}
+// 16kHz・モノラルのWAVにする
+function toWav(chunks,rate){
+  var len=0;chunks.forEach(function(c){len+=c.length;});
+  var all=new Float32Array(len),o=0;chunks.forEach(function(c){all.set(c,o);o+=c.length;});
+  var ratio=rate/16000,n=Math.floor(len/ratio),pcm=new Int16Array(n);
+  for(var i=0;i<n;i++){
+    var s0=Math.floor(i*ratio),s1=Math.min(len,Math.floor((i+1)*ratio)),acc=0;
+    for(var j=s0;j<s1;j++)acc+=all[j];
+    var v=acc/Math.max(1,s1-s0);v=Math.max(-1,Math.min(1,v));pcm[i]=v<0?v*0x8000:v*0x7fff;
+  }
+  var buf=new ArrayBuffer(44+pcm.length*2),dv=new DataView(buf);
+  function ws(p,str){for(var k=0;k<str.length;k++)dv.setUint8(p+k,str.charCodeAt(k));}
+  ws(0,'RIFF');dv.setUint32(4,36+pcm.length*2,true);ws(8,'WAVE');ws(12,'fmt ');dv.setUint32(16,16,true);
+  dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,16000,true);dv.setUint32(28,32000,true);
+  dv.setUint16(32,2,true);dv.setUint16(34,16,true);ws(36,'data');dv.setUint32(40,pcm.length*2,true);
+  new Int16Array(buf,44).set(pcm);
+  var bytes=new Uint8Array(buf),bin='';
+  for(var q=0;q<bytes.length;q+=0x8000)bin+=String.fromCharCode.apply(null,bytes.subarray(q,q+0x8000));
+  return btoa(bin);
+}
+function sendAudio(chunks,rate){
+  var b64=toWav(chunks,rate);
+  pending++;vstate('解析中…（'+pending+'）');
+  var line=addLog('🎤 解析中…','ai');
+  queue=queue.then(function(){
+    return gemCall([{text:ctxText(ctxForAI())+'\n次の音声を聞き取り、transcript に聞き取った日本語を、actions に検査の指示を入れてください。'},
+      {inlineData:{mimeType:'audio/wav',data:b64}}]).then(function(res){
+      var notes=applyActions(res&&res.actions);render();
+      $('heard').textContent='「'+(res.transcript||'')+'」';
+      line.className=notes.length?'ok':'ng';
+      line.textContent='🎤「'+(res.transcript||'（聞き取れず）')+'」→ '+(notes.length?notes.join('、'):'検査の指示として読み取れませんでした');
+    }).catch(function(e){line.className='ng';line.textContent='🎤 '+errMsg(e);})
+    .then(function(){pending--;vstate(listening?(pending?'解析中…（'+pending+'）':'聞いています'):'');});
+  });
+}
+function stopMic(){
+  listening=false;
+  try{if(proc){proc.disconnect();proc.onaudioprocess=null;}}catch(x){}
+  try{if(micStream)micStream.getTracks().forEach(function(t){t.stop();});}catch(x){}
+  try{if(AC)AC.close();}catch(x){}
+  proc=null;micStream=null;AC=null;$('lvl').style.width='0';
+  micUI();vstate(pending?'解析中…':'');
+}
+
+/* ───────── テンキー ───────── */
+function pressNum(n){
+  snap();
+  if(S.tab==='mob'||S.tab==='furc'){putTooth(S.tab==='mob'?'mob':'furc',Math.min(3,n));S.plus10=false;return;}
+  if(S.tab==='pl'){putSite('pl',n>0);return;}
+  var v=n+(S.plus10?10:0);S.plus10=false;
+  var field=S.tab==='rec'?'rec':'pd';
+  if(S.bulk){
+    var ci=curInfo();if(!ci)return;
+    var g=GROUPS[S.cur.g];var ord=siteOrder(g);
+    ord.forEach(function(i){S.teeth[ci.tooth][field][ci.side][i]=v;});
+    S.last={tooth:ci.tooth,side:ci.side,idxs:ord.slice()};
+    S.bulk=false;nextTooth();return;
+  }
+  putSite(field,v);
+}
+function toggleFlag(f){
+  var r=S.last;var idx;
+  if(r){idx=r.idxs[r.idxs.length-1];}else{var ci=curInfo();if(!ci)return;r={tooth:ci.tooth,side:ci.side};idx=ci.idx;}
+  snap();
+  var arr=S.teeth[r.tooth][f][r.side];arr[idx]=!arr[idx];
+}
+function pad(k){
+  if(/^\d$/.test(k)){pressNum(parseInt(k,10));render();return;}
+  switch(k){
+    case 'bop':toggleFlag('bop');break;
+    case 'calc':toggleFlag('calc');break;
+    case 'pus':toggleFlag('pus');break;
+    case 'fwd':if(SITE_TABS[S.tab])stepFwd();else tStep(1);S.last=null;break;
+    case 'back':if(SITE_TABS[S.tab])stepBack();else tStep(-1);S.last=null;break;
+    case 'undo':undo();break;
+    case 'clear':clearCurrent();break;
+    case 'plus10':S.plus10=!S.plus10;break;
+    case 'bulk':S.bulk=!S.bulk;break;
+    case 'prev':toast('お試し版にはありません');return;
+    case 'save':toast('お試し版は保存しません');return;
+    case 'finish':if(confirm('入力をすべて消して、最初からにしますか？'))newExam();return;
+  }
+  render();
+}
+function clearCurrent(){
+  snap();
+  if(SITE_TABS[S.tab]){
+    var ci=curInfo();if(!ci)return;var t=S.teeth[ci.tooth];
+    t.pd[ci.side][ci.idx]=null;t.rec[ci.side][ci.idx]=null;
+    ['bop','pl','pus','calc'].forEach(function(f){t[f][ci.side][ci.idx]=false;});
+  }else{var tt=curTooth();if(tt!=null)S.teeth[tt][S.tab==='mob'?'mob':'furc']=null;}
+}
+
+/* ───────── 前回値コピー ───────── */
+function copyPrev(){
+  var pid=$('pid').value.trim();
+  if(!pid){toast('先に患者を選んでください');return;}
+  toast('前回の検査を探しています…');
+  run('listExams',pid).then(function(list){
+    var prev=(list||[]).filter(function(x){return x.patientId===pid&&x.examId!==S.examId;})[0];
+    if(!prev){toast('前回の検査が見つかりません');return;}
+    return run('loadExam',prev.examId).then(function(ex){
+      snap();
+      var map={pd:['pd'],rec:['rec'],pl:['pl'],mob:['mob'],furc:['furc']}[S.tab];
+      Object.keys(ex.teeth).forEach(function(k){
+        var src=ex.teeth[k],dst=S.teeth[k];if(!dst)return;
+        dst.missing=src.missing;dst.primary=src.primary;
+        map.forEach(function(f){dst[f]=JSON.parse(JSON.stringify(src[f]));});
+      });
+      skipMissing(1);render();toast(prev.date+' の値をコピーしました');
+    });
+  }).catch(function(e){toast(errMsg(e));});
+}
+
+/* ───────── 保存・終了 ───────── */
+function examData(){
+  return {examId:S.examId,date:S.date,patientId:$('pid').value.trim(),patientName:$('pname').value.trim(),
+    examiner:$('pexam').value,examType:$('ptype').value,mode:S.mode,teeth:S.teeth,summary:summary()};
+}
+function saveExam(){
+  var ex=examData();
+  if(!ex.patientId&&!ex.patientName){toast('先に患者を選んでください');return Promise.reject();}
+  toast('保存しています…');
+  return run('saveExam',ex).then(function(r){
+      S.examId=r.examId;saveDraft();toast('スプレッドシートに保存しました');
+      // 検査をサブカルテにも1回だけ記録する
+      if(ex.patientId&&!S.karteRecId){
+        var sm=ex.summary;
+        var memo='平均PPD '+sm.avgPd+'mm／4mm以上 '+sm.deepRate+'%／BOP '+sm.bopRate+'%'+(sm.pcr!==''&&sm.pcr>0?'／PCR '+sm.pcr+'%':'')+'／'+ex.mode+'点法';
+        var st=stepFor(ex.examType,null);var nx='';var done={};
+        K.records.forEach(function(x){if(x.step>=0)done[x.step]=1;});if(st>=0)done[st]=1;
+        for(var i=0;i<K.plan.length;i++){if(!done[i]){nx=K.plan[i];break;}}
+        S.karteRecId=Utilities_uuid();
+        return loadKarte(true).then(function(){
+          return saveKRecord({id:S.karteRecId,date:ex.date,proc:ex.examType,area:'全顎',memo:memo,next:nx||'SPT',staff:ex.examiner,step:stepFor(ex.examType,null)});
+        }).then(function(){return r;},function(){return r;});
+      }
+      return r;})
+    .catch(function(e){toast('保存できませんでした：'+errMsg(e));throw e;});
+}
+function finishExam(){
+  if(!confirm('保存して、この検査を終了しますか？'))return;
+  saveExam().then(function(){newExam();}).catch(function(){});
+}
+function Utilities_uuid(){return 'k'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+function newExam(){
+  stopMic();S.karteRecId=null;K={pid:'',plan:DEFAULT_PLAN.slice(),records:[],editId:null};
+  resetTeeth();HIST=[];S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;S.examId=null;S.plus10=false;S.bulk=false;
+  $('pid').value='';$('pname').value='';$('pidShow').textContent='未選択';$('pnameShow').textContent='';S.date=today();$('pdate').value=S.date;
+  resetKForm();renderKarte();render();
+}
+
+/* ───────── 下書きの自動保存（この端末のみ） ───────── */
+function saveDraft(){
+  try{localStorage.setItem('perioDraft',JSON.stringify({S:S,pid:$('pid').value,pname:$('pname').value,exam:$('pexam').value}));}catch(e){}
+}
+function loadDraft(){
+  try{
+    var d=JSON.parse(localStorage.getItem('perioDraft')||'null');if(!d||!d.S)return;
+    S=d.S;$('pid').value=d.pid||'';$('pname').value=d.pname||'';$('pdate').value=S.date||today();
+    window._draftExaminer=d.exam;
+  }catch(e){}
+}
+
+/* ───────── 設定・履歴 ───────── */
+var SETTINGS=null;
+function applySettings(s){
+  SETTINGS=s;
+  var sel=$('pexam');var cur=window._draftExaminer||sel.value;
+  sel.innerHTML=s.examiners.map(function(n){return '<option>'+esc(n)+'</option>';}).join('');
+  if(cur&&s.examiners.indexOf(cur)>=0)sel.value=cur;
+  var ks=$('kstaff');var kc=ks.value||sel.value;
+  ks.innerHTML=sel.innerHTML;if(kc&&s.examiners.indexOf(kc)>=0)ks.value=kc;
+}
+function openSettings(){
+  $('keyState').innerHTML=gemKey()?'APIキー：<b style="color:#2f8f75">このiPadに設定済み</b>':'APIキー：<b style="color:#e5484d">未設定</b>（Google AI Studioで作ったキーを入れてください）';
+  $('setKey').value='';$('setModel').value=gemModel();
+  $('dlgSet').showModal();
+}
+function saveSettingsUI(){
+  var k=$('setKey').value.trim();if(k)lsSet('gemKey',k);
+  var m=$('setModel').value.trim();if(m)lsSet('gemModel',m);
+  $('setKey').value='';openSettings();toast('設定を保存しました（このiPadだけに保存）');
+}
+function openHist(){$('dlgHist').showModal();$('histQ').value=$('pid').value.trim();searchHist();}
+function searchHist(){
+  $('histList').innerHTML='<div>読み込み中…</div>';
+  run('listExams',$('histQ').value).then(function(list){
+    if(!list.length){$('histList').innerHTML='<div>記録がありません</div>';return;}
+    $('histList').innerHTML=list.map(function(x){
+      return '<div data-id="'+esc(x.examId)+'">'+esc(x.date)+'　'+esc(x.patientId)+'　'+esc(x.patientName)+'　'+esc(x.mode)+
+        '　平均'+esc(x.avgPd)+'mm　BOP'+esc(x.bopRate)+'%　（'+esc(x.examiner)+'）</div>';
+    }).join('');
+  }).catch(function(e){$('histList').innerHTML='<div>'+esc(errMsg(e))+'</div>';});
+}
+function loadFromHist(id){
+  run('loadExam',id).then(function(ex){
+    stopMic();
+    S.examId=ex.examId;S.date=ex.date;S.mode=ex.mode||6;S.teeth=ex.teeth;S.cur={g:0,t:0,s:0};S.tcur=0;S.last=null;HIST=[];
+    $('pid').value=ex.patientId||'';$('pname').value=ex.patientName||'';$('pdate').value=ex.date||'';
+    $('pidShow').textContent=ex.patientId?('No. '+ex.patientId):'未選択';$('pnameShow').textContent=ex.patientName||'';
+    if(ex.examiner)$('pexam').value=ex.examiner;
+    if(ex.examType)$('ptype').value=ex.examType;S.karteRecId='loaded';loadKarte(true);
+    skipMissing(1);$('dlgHist').close();render();toast('読み込みました（保存すると上書きされます）');
+  }).catch(function(e){toast(errMsg(e));});
+}
+
+/* ───────── サブカルテ ───────── */
+var DEFAULT_PLAN=['基本検査','スケーリング','再検査','SRP','再検査','再SRP','再検査'];
+var EXTRA_PROCS=['TBI','PMTC','SPT','メインテナンス','歯周外科','その他'];
+var AREAS=['全顎','上顎','下顎','右上','左上','左下','右下','前歯部','臼歯部'];
+var K={pid:'',plan:DEFAULT_PLAN.slice(),records:[],editId:null};
+
+function stepStatus(){
+  var done={};
+  K.records.forEach(function(r){if(r.step>=0&&!done[r.step])done[r.step]=r.date;});
+  var next=-1;
+  for(var i=0;i<K.plan.length;i++){if(!done[i]){next=i;break;}}
+  return {done:done,next:next};
+}
+function renderKarte(){
+  var st=stepStatus();
+  var name=$('pname').value.trim();
+  $('kwho').textContent=K.pid?('患者番号 '+K.pid+(name?'　'+name:'')):'上の患者検索で患者を選んでください';
+  $('ksteps').innerHTML=K.plan.map(function(p,i){
+    var cls='step',sub='';
+    if(st.done[i]){cls+=' done';sub=st.done[i].slice(5).replace('-','/')+' 済';}
+    else if(i===st.next){cls+=' next';sub='次回';}
+    return (i?'<span class="arrow">→</span>':'')+'<span class="'+cls+'">'+esc(p)+(sub?'<small>'+sub+'</small>':'')+'</span>';
+  }).join('')+(st.next<0&&K.records.length?'<span class="arrow">→</span><span class="step next">SPT・メインテナンスへ</span>':'');
+  // 最新の次回予定
+  var last=K.records.length?K.records[K.records.length-1]:null;
+  if(last&&last.next){$('knext').style.display='';$('knext').innerHTML='次回の処置予定：<b>'+esc(last.next)+'</b>　（'+esc(last.date)+' 記録）';}
+  else $('knext').style.display='none';
+  // 処置の選択肢
+  var procs=[];K.plan.concat(EXTRA_PROCS).forEach(function(p){if(procs.indexOf(p)<0)procs.push(p);});
+  var cur=$('kproc').value;
+  $('kproc').innerHTML=procs.map(function(p){return '<option>'+esc(p)+'</option>';}).join('');
+  if(!K.editId){
+    $('kproc').value=st.next>=0?K.plan[st.next]:'SPT';
+    suggestNext();
+  }else if(cur)$('kproc').value=cur;
+  // 記録一覧
+  if(!K.records.length){$('krec').innerHTML=K.pid?'<tr><td>まだ記録はありません</td></tr>':'';return;}
+  $('krec').innerHTML='<tr><th>処置日</th><th>処置</th><th>部位</th><th>内容・メモ</th><th>次回予定</th><th>担当</th><th class="noprint"></th></tr>'+
+    K.records.slice().reverse().map(function(r){
+      return '<tr><td>'+esc(r.date)+'</td><td><b>'+esc(r.proc)+'</b></td><td>'+esc(r.area)+'</td><td>'+esc(r.memo)+'</td><td>'+esc(r.next)+'</td><td>'+esc(r.staff)+'</td>'+
+        '<td class="act noprint"><button data-edit="'+esc(r.id)+'">編集</button> <button data-del="'+esc(r.id)+'">削除</button></td></tr>';
+    }).join('');
+}
+// 今回の処置が計画のどの段階か
+function stepFor(proc,excludeId){
+  var done={};K.records.forEach(function(r){if(r.id!==excludeId&&r.step>=0)done[r.step]=1;});
+  for(var i=0;i<K.plan.length;i++){if(!done[i]&&K.plan[i]===proc)return i;}
+  return -1;
+}
+function suggestNext(){
+  var proc=$('kproc').value;var idx=stepFor(proc,K.editId);
+  var done={};K.records.forEach(function(r){if(r.id!==K.editId&&r.step>=0)done[r.step]=1;});
+  if(idx>=0)done[idx]=1;
+  var nx='';for(var i=0;i<K.plan.length;i++){if(!done[i]){nx=K.plan[i];break;}}
+  if(!nx)nx='SPT';
+  $('knextIn').value=nx;
+  var opts=[];[nx].concat(K.plan,EXTRA_PROCS).forEach(function(p){if(opts.indexOf(p)<0)opts.push(p);});
+  $('knextChips').innerHTML=opts.map(function(p){return '<button type="button" data-v="'+esc(p)+'">'+esc(p)+'</button>';}).join('');
+}
+function loadKarte(silent){
+  var pid=$('pid').value.trim();
+  if(!pid){if(!silent)toast('先に患者を選んでください');return Promise.resolve();}
+  return run('getKarte',pid).then(function(k){K.pid=pid;K.plan=k.plan;K.records=k.records;K.editId=null;resetKForm();renderKarte();
+      if(!S.examId){var st=stepStatus();$('ptype').value=(st.next<=0&&!K.records.length)?'基本検査':'再検査';}})
+    .catch(function(e){if(!silent)toast(errMsg(e));});
+}
+function resetKForm(){
+  K.editId=null;$('kdate').value=today();$('karea').value='全顎';$('kmemo').value='';
+  $('kstaff').value=$('pexam').value;$('kSave').textContent='処置を記録';$('kCancel').style.display='none';
+}
+function saveKRecord(extra){
+  var pid=$('pid').value.trim();
+  if(!pid){toast('先に患者を選んでください');return Promise.reject();}
+  if(K.pid!==pid){K.pid=pid;}
+  var proc=extra?extra.proc:$('kproc').value;
+  var rec=extra||{id:K.editId,date:$('kdate').value,proc:proc,area:$('karea').value.trim(),memo:$('kmemo').value.trim(),
+    next:$('knextIn').value.trim(),staff:$('kstaff').value};
+  rec.patientId=pid;rec.patientName=$('pname').value.trim();
+  if(rec.step==null)rec.step=stepFor(rec.proc,rec.id);
+  return run('saveRecord',rec).then(function(k){K.plan=k.plan;K.records=k.records;resetKForm();renderKarte();toast('サブカルテに記録しました');return rec;})
+    .catch(function(e){toast('記録できませんでした：'+errMsg(e));throw e;});
+}
+function editKRecord(id){
+  var r=K.records.filter(function(x){return x.id===id;})[0];if(!r)return;
+  K.editId=id;$('kdate').value=r.date;
+  if(!Array.prototype.some.call($('kproc').options,function(o){return o.value===r.proc;}))$('kproc').insertAdjacentHTML('beforeend','<option>'+esc(r.proc)+'</option>');
+  $('kproc').value=r.proc;$('karea').value=r.area;$('kmemo').value=r.memo;$('knextIn').value=r.next;$('kstaff').value=r.staff;
+  $('kSave').textContent='修正を保存';$('kCancel').style.display='';
+  $('kform').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function delKRecord(id){
+  if(!confirm('この処置記録を削除しますか？'))return;
+  run('deleteRecord',K.pid,id).then(function(k){K.plan=k.plan;K.records=k.records;resetKForm();renderKarte();toast('削除しました');})
+    .catch(function(e){toast(errMsg(e));});
+}
+function openPlan(){
+  if(!$('pid').value.trim()){toast('先に患者を選んでください');return;}
+  $('planText').value=K.plan.join('\n');
+  $('planChips').innerHTML=DEFAULT_PLAN.concat(EXTRA_PROCS).filter(function(p,i,a){return a.indexOf(p)===i;})
+    .map(function(p){return '<button type="button" data-v="'+esc(p)+'">＋'+esc(p)+'</button>';}).join('');
+  $('dlgPlan').showModal();
+}
+function savePlanUI(){
+  var plan=$('planText').value.split(/\n/).map(function(x){return x.trim();}).filter(Boolean);
+  if(!plan.length){toast('計画が空です');return;}
+  run('savePlan',$('pid').value.trim(),$('pname').value.trim(),plan).then(function(k){
+    K.pid=$('pid').value.trim();K.plan=k.plan;K.records=k.records;$('dlgPlan').close();resetKForm();renderKarte();toast('治療計画を保存しました');
+  }).catch(function(e){toast(errMsg(e));});
+}
+// 声でメモ
+var memoRec=null,memoOn=false;
+function toggleMemoMic(){
+  if(memoOn){memoOn=false;try{memoRec.stop();}catch(x){}$('kmemoMic').classList.remove('on');$('kmemoMic').textContent='● 声でメモ';return;}
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  {var m=$('kmemo');m.focus();toast('キーボードのマイク🎙を押して話してください');return;}
+  if(listening)stopMic();
+  memoRec=new SR();memoRec.lang='ja-JP';memoRec.continuous=true;memoRec.interimResults=false;
+  memoRec.onresult=function(e){
+    for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal){
+      var m=$('kmemo');m.value=(m.value?m.value.replace(/\s+$/,'')+'。':'')+e.results[i][0].transcript.trim();}}
+  };
+  memoRec.onend=function(){if(memoOn)try{memoRec.start();}catch(x){}};
+  memoOn=true;memoRec.start();$('kmemoMic').classList.add('on');$('kmemoMic').textContent='■ メモ 停止';
+}
+function bindKarte(){
+  $('kLoad').addEventListener('click',function(){loadKarte(false);});
+  $('kPlanEdit').addEventListener('click',openPlan);
+  $('planClose').addEventListener('click',function(){$('dlgPlan').close();});
+  $('planReset').addEventListener('click',function(){$('planText').value=DEFAULT_PLAN.join('\n');});
+  $('planSave').addEventListener('click',savePlanUI);
+  $('planChips').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    var t=$('planText');t.value=(t.value.replace(/\s+$/,'')+'\n'+b.dataset.v).replace(/^\n/,'');});
+  $('kproc').addEventListener('change',function(){if(!K.editId)suggestNext();});
+  $('kareaChips').innerHTML=AREAS.map(function(a){return '<button type="button" data-v="'+a+'">'+a+'</button>';}).join('');
+  $('kareaChips').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    var a=$('karea');var v=b.dataset.v;
+    if(v==='全顎'||!a.value||a.value==='全顎')a.value=v;else if(a.value.indexOf(v)<0)a.value+='・'+v;});
+  $('knextChips').addEventListener('click',function(e){var b=e.target.closest('button');if(b)$('knextIn').value=b.dataset.v;});
+  $('kSave').addEventListener('click',function(){saveKRecord().catch(function(){});});
+  $('kCancel').addEventListener('click',function(){resetKForm();renderKarte();});
+  $('kmemoMic').addEventListener('click',toggleMemoMic);
+  $('krec').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    if(b.dataset.edit)editKRecord(b.dataset.edit);if(b.dataset.del)delKRecord(b.dataset.del);});
+  resetKForm();renderKarte();
+}
+
+/* ───────── 患者検索（Patient2） ───────── */
+var pTimer=null,pSeq=0;
+function setPatient(p){
+  var changed=$('pid').value!==(p?p.code:'');
+  $('pid').value=p?p.code:'';$('pname').value=p?p.name:'';
+  $('pidShow').textContent=p?('No. '+p.code):'未選択';$('pnameShow').textContent=p?p.name:'';
+  $('pq').value='';$('plist').style.display='none';
+  if(changed){K.pid='';K.records=[];K.plan=DEFAULT_PLAN.slice();renderKarte();if(p)loadKarte(true);}
+  S.patientId=$('pid').value;S.patientName=$('pname').value;render();
+}
+function showPList(list){
+  var box=$('plist');
+  if(!list.length){box.innerHTML='<div style="color:#9a8b90;cursor:default">見つかりません</div>';box.style.display='block';return;}
+  box.innerHTML=list.map(function(p,i){return '<div data-i="'+i+'">No.'+esc(p.code)+'　<b>'+esc(p.name)+'</b><small>'+esc(p.kana)+'</small></div>';}).join('');
+  box._list=list;box.style.display='block';
+}
+function searchP(){
+  var q=$('pq').value.trim();
+  if(!q){$('plist').style.display='none';return;}
+  var my=++pSeq;
+  run('searchPatients',q).then(function(list){if(my===pSeq)showPList(list||[]);}).catch(function(e){toast(errMsg(e));});
+}
+function bindPatient(){
+  $('pq').addEventListener('input',function(){clearTimeout(pTimer);pTimer=setTimeout(searchP,350);});
+  $('pq').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&!e.isComposing){clearTimeout(pTimer);
+      var l=$('plist')._list;if($('plist').style.display==='block'&&l&&l.length===1){setPatient(l[0]);return;}searchP();}
+  });
+  $('plist').addEventListener('click',function(e){var d=e.target.closest('div[data-i]');if(d)setPatient($('plist')._list[+d.dataset.i]);});
+  document.addEventListener('click',function(e){if(!e.target.closest('.psearch'))$('plist').style.display='none';});
+  if($('pid').value)setPatient({code:$('pid').value,name:$('pname').value,kana:''});
+}
+
+/* ───────── 画面の切り替え ───────── */
+function showView(v){
+  Array.prototype.forEach.call(document.querySelectorAll('#nav button'),function(b){b.classList.toggle('on',b.dataset.view===v);});
+  Array.prototype.forEach.call(document.querySelectorAll('.view'),function(p){p.classList.toggle('on',p.dataset.v===v);});
+  try{window.scrollTo(0,0);}catch(e){}
+}
+
+var toastTimer;
+function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show');},2600);}
+
+/* ───────── イベント ───────── */
+function bind(){
+  $('pad').addEventListener('click',function(e){var b=e.target.closest('button');if(b)pad(b.dataset.k);});
+  $('tabs').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    var ci=curInfo();S.tab=b.dataset.tab;S.plus10=false;S.bulk=false;
+    if(!SITE_TABS[S.tab]){var k=ci?toothList().indexOf(ci.tooth):-1;S.tcur=k>=0?k:0;}
+    render();});
+  $('chart').addEventListener('click',function(e){
+    var td=e.target.closest('td');if(!td)return;
+    if(td.dataset.tooth){
+      var t=parseInt(td.dataset.tooth,10);
+      if(SITE_TABS[S.tab]){if(!S.teeth[t].missing)moveTo(t,'b');}
+      else{var k=toothList().indexOf(t);if(k>=0)S.tcur=k;}
+      S.last=null;render();return;
+    }
+    if(td.dataset.t&&!td.classList.contains('na')){
+      var tooth=parseInt(td.dataset.t,10),side=td.dataset.s,idx=parseInt(td.dataset.i,10);
+      if(S.teeth[tooth].missing)return;
+      if(!SITE_TABS[S.tab])S.tab='pd';
+      var gi=groupIndex(tooth,side);var ord=siteOrder(GROUPS[gi]);
+      S.cur={g:gi,t:GROUPS[gi].teeth.indexOf(tooth),s:Math.max(0,ord.indexOf(idx))};
+      S.last=null;render();
+    }
+  });
+  $('kMiss').addEventListener('click',function(){
+    var t=SITE_TABS[S.tab]?(curInfo()||{}).tooth:curTooth();if(!t)return;
+    snap();S.teeth[t].missing=!S.teeth[t].missing;if(S.teeth[t].missing)skipMissing(1);render();
+  });
+  $('kPrim').addEventListener('click',function(){
+    var t=SITE_TABS[S.tab]?(curInfo()||{}).tooth:curTooth();if(!t)return;
+    if(t%10>5){toast('乳歯は1〜5番のみです');return;}
+    snap();S.teeth[t].primary=!S.teeth[t].primary;render();
+  });
+  $('m6').addEventListener('click',function(){S.mode=6;render();});
+  $('m4').addEventListener('click',function(){S.mode=4;S.cur.s=0;render();});
+  $('mic').addEventListener('click',function(){
+    if(dictOn){stopDict();return;}
+    listening?stopMic():startMic();
+  });
+  $('dict').addEventListener('input',function(){
+    var v=$('dict').value;$('heard').textContent='聞き取り中：'+v.slice(dictDone);
+    clearTimeout(dictTimer);dictTimer=setTimeout(flushDict,1600);
+  });
+  $('dict').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing){e.preventDefault();flushDict();}});
+  $('typedGo').addEventListener('click',function(){enqueue($('typed').value);$('typed').value='';});
+  $('typed').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing){enqueue($('typed').value);$('typed').value='';}});
+  $('pdate').addEventListener('change',function(){S.date=$('pdate').value;render();});
+  ['pexam'].forEach(function(id){$(id).addEventListener('change',function(){S.examiner=$('pexam').value;render();});});
+  $('btnPrint').addEventListener('click',function(){S.examiner=$('pexam').value;render();window.print();});
+  $('btnSet').addEventListener('click',openSettings);
+  $('setClose').addEventListener('click',function(){$('dlgSet').close();});
+  $('setSave').addEventListener('click',saveSettingsUI);
+  $('setTest').addEventListener('click',function(){
+    toast('Geminiに接続しています…');
+    run('parseUtterance','右上7番 頬側 3 2 4 出血',{tooth:17,side:'buccal',mode:6}).then(function(r){toast('接続できました：'+(r.actions||[]).length+'件の指示を読み取りました');})
+      .catch(function(e){toast(errMsg(e));});
+  });
+  $('btnHist').addEventListener('click',openHist);
+  $('histGo').addEventListener('click',searchHist);
+  $('histClose').addEventListener('click',function(){$('dlgHist').close();});
+  $('histList').addEventListener('click',function(e){var d=e.target.closest('div[data-id]');if(d)loadFromHist(d.dataset.id);});
+  // パソコンのキーボードでも入力できるように
+  document.addEventListener('keydown',function(e){
+    if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;
+    if(/^\d$/.test(e.key)){pad(e.key);e.preventDefault();}
+    else if(e.key==='ArrowRight'||e.key==='Enter'){pad('fwd');e.preventDefault();}
+    else if(e.key==='ArrowLeft'||e.key==='Backspace'){pad('back');e.preventDefault();}
+    else if(e.key==='b'){pad('bop');}
+  });
+}
+
+function init(){
+  $('pdate').value=S.date;
+  loadDraft();
+  bind();
+  bindKarte();
+  bindPatient();
+  $('nav').addEventListener('click',function(e){var b=e.target.closest('button');if(b)showView(b.dataset.view);});
+  applySettings({examiners:['院長','小林','村上','鈴木']});
+  if(!gemKey())setTimeout(function(){toast('右上の「設定」でGeminiのAPIキーを入れてください');},600);
+  render();
+  if($('pid').value.trim())loadKarte(true);
+}
+init();
+</script>
+</body>
+</html>
